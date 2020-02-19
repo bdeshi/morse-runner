@@ -44,6 +44,9 @@ module.exports = function(grunt) {
       }
     },
     watch: {
+      options: {
+        livereload: true,
+      },
       stylus: {
         files: 'src/**.styl',
         tasks: ['stylus']
@@ -60,6 +63,7 @@ module.exports = function(grunt) {
     connect: {
       server: {
         options: {
+          livereload: true,
           port: 5600,
           base: 'dist'
         }
