@@ -39,7 +39,7 @@ module.exports = function(grunt) {
     browserify: {
       dist: {
         files: {
-          "dist/index.js": "src/index.js"
+          'dist/index.js': 'src/index.js'
         }
       }
     },
@@ -81,15 +81,15 @@ module.exports = function(grunt) {
 
   grunt.loadNpmTasks('grunt-contrib-clean');
   grunt.loadNpmTasks('grunt-contrib-copy');
-  grunt.loadNpmTasks("grunt-concurrent");
-  grunt.loadNpmTasks("grunt-contrib-connect");
-  grunt.loadNpmTasks("grunt-contrib-watch");
-  grunt.loadNpmTasks("grunt-browserify");
+  grunt.loadNpmTasks('grunt-concurrent');
+  grunt.loadNpmTasks('grunt-contrib-connect');
+  grunt.loadNpmTasks('grunt-contrib-watch');
+  grunt.loadNpmTasks('grunt-browserify');
   grunt.loadNpmTasks('grunt-contrib-stylus');
   grunt.loadNpmTasks('grunt-contrib-pug');
 
-  grunt.registerTask("build", ["clean", "copy", "concurrent"]);
-  grunt.registerTask("serve", ["build", "connect", "watch"]);
-  grunt.registerTask("default", ["build"]);
+  grunt.registerTask('build', ['clean', 'copy', 'concurrent']);
+  grunt.registerTask('serve', ['build', 'connect', 'watch']);
+  grunt.registerTask('default', ['build']);
 };
 
