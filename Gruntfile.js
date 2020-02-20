@@ -64,6 +64,7 @@ module.exports = function(grunt) {
       server: {
         options: {
           livereload: true,
+          hostname: '*',
           port: 5600,
           base: 'dist'
         }
@@ -92,4 +93,3 @@ module.exports = function(grunt) {
   grunt.registerTask('serve', ['build', 'connect', 'watch']);
   grunt.registerTask('default', ['build']);
 };
-
