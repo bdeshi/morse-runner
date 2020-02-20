@@ -1,11 +1,39 @@
 let Crafty = require('craftyjs');
-Crafty.init(300,300, '#game');
-Crafty.e('Floor, 2D, Canvas, Color')
-  .attr({x: 0, y: 250, w: 250, h: 10})
-  .color('green');
-Crafty.e('2D, Canvas, Color, Twoway, Gravity')
-  .attr({x: 0, y: 0, w: 50, h: 50})
-  .color('#F00')
-  .twoway(200)
-  .gravity('Floor');
+Crafty.init(800, 480, '#game');
+Crafty.background('#FFF');
+
+function assetLoader () {
+    return
+}
+
+function generateMap () {
+    return
+}
+
+function entitySetup () {
+    return
+}
+
+Crafty.defineScene("loading", function () {
+    Crafty.background("#555");
+    Crafty.e("2D, DOM, Text")
+        .attr({w: 100, h: 20, x: 0, y: 0})
+        .text("loading")
+        .textAlign("center")
+        .textColor("red");
+});
+
+Crafty.defineScene("menu", function () {
+    return
+});
+
+Crafty.defineScene("main", function () {
+    return
+});
+
+Crafty.defineScene("end", function () {
+    return
+});
+
+Crafty.enterScene("loading");
 
