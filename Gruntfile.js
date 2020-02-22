@@ -68,11 +68,19 @@ module.exports = function(grunt) {
           port: 5600,
           base: 'dist'
         }
+      },
+      demo_server: {
+        options: {
+          keepalive: true,
+          hostname: '*',
+          port: 5601,
+          base: '.scratch'
+        }
       }
     },
     concurrent: {
       build: {
-        tasks: ['browserify', 'stylus', 'pug'],
+        tasks: ['stylus', 'pug', 'browserify', 'copy' ],
         options: {
           logConcurrentOutput: true
         }
@@ -89,7 +97,8 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-stylus');
   grunt.loadNpmTasks('grunt-contrib-pug');
 
-  grunt.registerTask('build', ['clean', 'copy', 'concurrent']);
-  grunt.registerTask('serve', ['build', 'connect', 'watch']);
+  grunt.registerTask('build', ['clean', 'concurrent']);
+  grunt.registerTask('serve', ['build', 'connect:server', 'watch']);
   grunt.registerTask('default', ['build']);
+  grunt.registerTask('serve-demos', ['connect:demo_server']);
 };
