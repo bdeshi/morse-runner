@@ -1,9 +1,10 @@
 let C = require('craftyjs');
 
-C.loggingEnabled = true;
-C.init(800, 480);
+let W = 800, H = 480;
+C.init(W, H);
 C.background('#FFF');
 C.paths({audio: 'assets/audio/', images: 'assets/images/'});
+C.loggingEnabled = true;
 let Clog = C.log;
 
 let assets = {
@@ -32,6 +33,9 @@ function convertStr(str) {
 }
 
 function validateStr(str) {
+    if (str.length == 0) {
+        return false;
+    }
     for (i = 0; i < str.length; i++) {
         if (!morse.hasOwnProperty(str[i])) {
             return false;
@@ -62,10 +66,17 @@ function generateMap(msg) {
     });
     Clog('morse map: ' + morseMap);
     // TODO: generate map
+    // TODO: blocks distance must be within jump width
+    let pos = 0;
+    for (i=0; i < morseMap.length; i++) {
+
+    }
     return morseMap;
+
 }
 
-C.defineScene("loading", function () {
+C.defineScene("start", function () {
+    // TODO: show splash screen
     // Crafty.background("#555");
     C.e("2D, Canvas, Text, LoadingText")
         .attr({x: C.viewport.width / 2, y: C.viewport.height / 2})
@@ -82,34 +93,65 @@ C.defineScene("loading", function () {
     );
 });
 
-
 C.defineScene("main", function () {
+    // TODO: obstacles
+    // TODO: graphics
+    // TODO: mouse control
     msg = getUrlHash();
     if (!validateStr(msg)) {
         msg = "hello";
     }
     generateMap(msg);
-    C.e('Player, 2D, Canvas, Color, Twoway, Gravity')
-        .attr({x: C.viewport.width / 2, y: C.viewport.height / 2, w: 20, h: 20})
+
+    let player = C.e('Player, 2D, Canvas, Color, Twoway, Gravity')
+        .attr({x: W/4, y: 0, w: 20, h: 20})
         .color("#ff0000")
-        .twoway(200)
+        .gravityConst(1 * 2500)
+        .twoway(6 * 50, 17 * 50)
+        .preventGroundTunneling()
         .gravity('Floor');
+
     C.e('Floor, 2D, Canvas, Color')
-        .attr({x: 0, y: C.viewport.height - 20, w: C.viewport.width, h: 20})
+        .attr({x: -W/2, y: H - 100, w: W, h: 20})
         .color("#40cf40");
-    let player = C('Player');
+    C.e('Floor, 2D, Canvas, Color')
+        .attr({x: W/2 + 220, y: H - 100, w: W, h: 20})
+        .color("#40cf40");
+
+    player.trigger('NewDirection', {x: 1, y: 1});
     player.bind('UpdateFrame', function(ev) {
-        if (this.x < 0) {
-            this.x = 0;
-        }
+        if (this.x < -50) { this.x += 20; }  // don't go off map
+        if (this.y > H + 100) { C.enterScene("gotoMain"); }  // fall to death
     });
+
+    // simplified smooth camera follow
+    let cam = C.e('2D, Canvas, Color, Tween')
+        .attr({x: player.x, y: H - 150, w: 350, h: 100})
+        .color("#000000", 0.0);
     C.viewport.clampToEntities = false;
-    C.viewport.follow(player, -200, 100);
-    // TODO: mouse control
-    // TODO: faster movement
-    // TODO: better camera
-    // TODO: obstacles
-    // TODO: graphics
+    cam.bind('UpdateFrame', function () {
+        C.viewport.centerOn(this, 250);
+    })
+    player.bind('NewDirection', function (dir) {
+        this.last_dir_x = this.dir_x || -1;
+        this.dir_x = dir.x;
+        this.last_dir_y = this.dir_y || -1;
+        this.dir_y = dir.y;
+    });
+    player.bind('UpdateFrame', function (ev) {
+        let x = cam.x, y = cam.y;
+        if (this.y < cam.y) { y = this.y }
+        else if (this.y > cam.y+cam.h-this.h) { y = this.y-cam.h+this.h }
+        if (player.dir_x == 1) { x = this.x }
+        else if (player.dir_x == -1) { x = this.x + this.w - cam.w }
+        cam.attr({x: x, y: y});
+    });
+});
+
+// called from main and just goes back to main
+// ensures no entities from main survives
+C.defineScene("gotoMain", function () {
+    C.enterScene("main");
 });
 
 C.defineScene("end", function () {
@@ -118,4 +160,4 @@ C.defineScene("end", function () {
     return
 });
 
-C.enterScene("loading");
+C.enterScene("start");
