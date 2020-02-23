@@ -10,8 +10,10 @@ module.exports = function(grunt) {
       build: {
         cwd: 'assets',
         src: [ '**' ],
-        dest: 'dist/assets',
-        expand: true
+        dest: 'dist',
+        expand: true,
+        filter: 'isFile',
+        flatten: true
       }
     },
     pug: {

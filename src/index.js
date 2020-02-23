@@ -1,21 +1,26 @@
 let C = require('craftyjs');
 
+// viewport size
 let W = 800, H = 480;
+// player position
 let I = { x: 100, y: 360 };
 
 // player gravity speed jump strength, jump width, jump height
 // jumps should be mathematically determined if possible
-let G = 1 * 2500, S = 6 * 50, J = 17 * 50, J_W = 234, J_H = 170;
+let M = { G: 1 * 2500, S: 6 * 50, J: 17 * 50, J_W: 234, J_H: 170 };
 // player sprite w/h
-let P = { w: 20, h: 20 };
+let P = { w: 40, h: 40 };
+let V = { x: 0, y: 0 };
+
 C.init(W, H);
 C.background('#FFF');
-C.paths({audio: 'assets/audio/', images: 'assets/images/'});
+// C.paths({audio: 'assets/audio/', images: 'assets/images/'});
 C.loggingEnabled = true;
 let Clog = C.log;
 
 let assets = {
     // see `http://craftyjs.com/api/Crafty-load.html
+    "images": ["alienGreen_stand.png", "signRight.png"]
 };
 
 let morse = {
@@ -82,12 +87,13 @@ function generateMap(msg) {
     // TODO: blocks distance must be within jump width
     // each new block is placed somewhere after (pox.x,pos.y)
     // withing a limited distance
-    let h = 40, dot_w = 120, dash_w = 240;
-    let pos = { x: W/2, y: 360 };
+    let h = 70, dot_w = 70, dash_w = 210;
+    let pos = { x: W/2, y: I.y };
     for (i=0; i < morseMap.length; i++) {
-        let step_x = randomInt(60, J_W);
-        let step_y = randomInt(pos.y + h, pos.y - J_H + P.h);
-        let attr = {x: pos.x + step_x, y: step_y+h, w: 0, h: h, name: ''};
+        let step_x = randomInt(M.J_W/2, M.J_W);
+        let step_y = randomInt(pos.y - M.J_H + P.h, pos.y - M.J_H/2);
+        Clog(pos.y);
+        let attr = {x: pos.x + step_x, y: step_y, w: 0, h: h, name: ''};
         let m = morseMap[i];
         if (m in [0, 1]) {
             attr.w = (m === 0) ? dot_w : dash_w;
@@ -107,7 +113,16 @@ function generateMap(msg) {
     C.e('2D, Canvas, Color, Final, Floor')
         .color('goldenrod')
         .attr({x: pos.x + 60, y: pos.y, w: W, h: 60});
+
+    C("Dash, Dot").each(function (e) {
+        this.addComponent('Floor, Persist');
+    });
+
     return morseMap;
+}
+
+function setupAssets() {
+    C.sprite("alienGreen_stand.png", {player_idle: [0,0, 66, 92]});
 }
 
 C.defineScene("start", function () {
@@ -120,6 +135,7 @@ C.defineScene("start", function () {
         .textColor("white");
     C.load(assets,
         function () {
+            setupAssets();
             C.enterScene('main');
         },
         function (stat) {
@@ -137,35 +153,40 @@ C.defineScene("main", function () {
     if (!validateStr(msg)) {
         msg = "hello";
     }
-    generateMap(msg);
 
-    C("Dash, Dot").each(function (e) {
-        this.addComponent('Floor, Persist');
-    });
-
-    // C("Dot, Dash").addComponent('Floor');
-    let player = C.e('Player, 2D, Canvas, Color, Twoway, Gravity')
-        .attr({x: I.x, y: I.y, w: P.w, h: P.h})
-        .color("#ff0000")
-        .gravityConst(G)
-        .twoway(S, J)
-        .preventGroundTunneling()
+    let player = C.e('Player, 2D, Canvas, Twoway, Gravity, player_idle')
+        .attr({ x: I.x, y: I.y })
+        .gravityConst(M.G)
+        .twoway(M.S, M.J)
+        // .preventGroundTunneling()
         .gravity('Floor');
-
+    P = { w: player.w, h: player.h };
     C.e('Floor, 2D, Canvas, Color')
         .attr({x: -W/2, y: H - 100, w: W, h: 20})
         .color("#40cf40");
 
+    generateMap(msg);
+
+
+    // encompass location of all dots and dashes
+    let bottom = C.e('2D, Canvas, Color, marker')
+        .attr({x: 0, y: H, w: 0, h: 2})
+        .color("#de0000");
+    C("Dash, Dot").each(function (e) {
+        if (bottom.w < this.x+ this.w) {
+            bottom.w = this.x+ this.w;
+        }
+    });
+
     player.trigger('NewDirection', {x: 1, y: 1});
     player.bind('UpdateFrame', function(ev) {
         if (this.x < -50) { this.x += 20; }  // don't go off map
-        if (this.y > H + 1000) { C.enterScene("redo"); }  // fall to death
+        if (this.y > H + 500) { C.enterScene("redo"); }  // fall to death
     });
 
     // simplified smooth camera follow
-    let cam = C.e('2D, Canvas, Color, Tween')
-        .attr({x: player.x, y: H - 150, w: 350, h: 300})
-        .color("#000000", 0.0);
+    let cam = C.e('2D')
+        .attr({x: player.x, y: H - 150, w: 350, h: 100});
     C.viewport.clampToEntities = false;
     cam.bind('UpdateFrame', function () {
         C.viewport.centerOn(this, 250);
@@ -175,11 +196,13 @@ C.defineScene("main", function () {
         this.dir_x = dir.x;
         this.last_dir_y = this.dir_y || -1;
         this.dir_y = dir.y;
+        if (this.dir_x == -1) { this.flip() }
+        else if (this.dir_x == 1) { this.unflip() }
     });
     player.bind('UpdateFrame', function (ev) {
         let x = cam.x, y = cam.y;
-        if (this.y < cam.y) { y = this.y }
-        else if (this.y > cam.y+cam.h-this.h) { y = this.y-cam.h+this.h }
+        // if (player.dir_y == 1) { y = this.y }
+        y = this.y + this.h - cam.h/2;
         if (player.dir_x == 1) { x = this.x }
         else if (player.dir_x == -1) { x = this.x + this.w - cam.w }
         cam.attr({x: x, y: y});
@@ -187,7 +210,8 @@ C.defineScene("main", function () {
     player.bind('LandedOnGround', function(ground) {
         if (ground.has('Final')) {
             Clog('finished!');
-            C.enterScene('end');
+
+            // C.enterScene('end');
         }
     })
 });
