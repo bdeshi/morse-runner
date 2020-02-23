@@ -2,25 +2,74 @@ let C = require('craftyjs');
 
 // viewport size
 let W = 800, H = 480;
-// player position
-let I = { x: 100, y: 360 };
-
+// sprite tile default ht
+let T = 70;
+// player sprite w/h, will take on sprite asset dimensions
+let P = { x: 100, y: 360, w: 0, h: 0 };
 // player gravity speed jump strength, jump width, jump height
-// jumps should be mathematically determined if possible
+// TODO: magic values should be mathematically determined
 let M = { G: 1 * 2500, S: 6 * 50, J: 17 * 50, J_W: 234, J_H: 170 };
-// player sprite w/h
-let P = { w: 40, h: 40 };
-let V = { x: 0, y: 0 };
+// will hold viewport {x: x, y: y} positions for replay
+let VPos = {};
 
 C.init(W, H);
 C.background('#FFF');
-// C.paths({audio: 'assets/audio/', images: 'assets/images/'});
 C.loggingEnabled = true;
 let Clog = C.log;
 
 let assets = {
     // see `http://craftyjs.com/api/Crafty-load.html
-    "images": ["alienGreen_stand.png", "signRight.png"]
+    "audio": {},
+    "images": [
+        "alienGreen_badge1.png",
+        "alienGreen_stand.png",
+        "backgroundCastles.png",
+        "backgroundColorForest.png",
+        "backgroundColorGrass.png",
+        "backgroundDesert.png",
+        "bush1.png",
+        "bush2.png",
+        "bush3.png",
+        "bush4.png",
+        "bushAlt2.png",
+        "bushAlt3.png",
+        "bushAlt4.png",
+        "bushOrange1.png",
+        "bushOrange2.png",
+        "bushOrange3.png",
+        "bushOrange4.png",
+        "cloud1.png",
+        "cloud2.png",
+        "cloud3.png",
+        "cloud4.png",
+        "cloud5.png",
+        "cloud6.png",
+        "cloud7.png",
+        "cloud8.png",
+        "coinGold.png",
+        "fence.png",
+        "flagRed.png",
+        "flagRed2.png",
+        "gemYellow.png",
+        "grass.png",
+        "grassHalf.png",
+        "grassHalfLeft.png",
+        "grassHalfMid.png",
+        "grassHalfRight.png",
+        "grassLeft.png",
+        "grassMid.png",
+        "grassRight.png",
+        "keyGreen.png",
+        "ladder_mid.png",
+        "ladder_top.png",
+        "lock_yellow.png",
+        "moon.png",
+        "moonFull.png",
+        "p1_spritesheet.png",
+        "signRight.png",
+        "star.png",
+        "sun.png"
+    ]
 };
 
 let morse = {
@@ -58,6 +107,7 @@ function validateStr(str) {
 
 function getUrlHash() {
     let defaultStr = convertStr("hello");
+    // let defaultStr = "h!mnwd!xnt";
     let targetStr = decodeURIComponent(window.location.hash.substring(1));
     targetStr = targetStr.toLowerCase();
     if (targetStr.length == 0) {
@@ -72,7 +122,7 @@ function randomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function generateMap(msg) {
+function makeMap(msg) {
     // morseMap: 0: ., 1: -, 2: /, -1: end of a character
     var morseMap = [];
     [...msg].forEach(function (c) {
@@ -87,42 +137,77 @@ function generateMap(msg) {
     // TODO: blocks distance must be within jump width
     // each new block is placed somewhere after (pox.x,pos.y)
     // withing a limited distance
-    let h = 70, dot_w = 70, dash_w = 210;
-    let pos = { x: W/2, y: I.y };
+    let h = T, w = T;
+    let pos = { x: W/2, y: P.y };
     for (i=0; i < morseMap.length; i++) {
-        let step_x = randomInt(M.J_W/2, M.J_W);
-        let step_y = randomInt(pos.y - M.J_H + P.h, pos.y - M.J_H/2);
-        Clog(pos.y);
-        let attr = {x: pos.x + step_x, y: step_y, w: 0, h: h, name: ''};
+        let attr = {x: 0, y: 0, w: 0, h: 0};
         let m = morseMap[i];
-        if (m in [0, 1]) {
-            attr.w = (m === 0) ? dot_w : dash_w;
-            attr.name += (m === 0) ? 'Dot' : 'Dash';
-        } else {
+        if (!(m in [0, 1])) {
+            // roll back positioning
             attr.x = pos.x;
             attr.y = pos.y;
             attr.w = 0;
-            attr.name = (m < 0) ? 'Word' : 'Space';
+            attr.h = 0;
+            let name = (m < 0) ? 'Word' : 'Space';
+            let block = C.e('2D, Canvas, Block, Persist, ' + name)
+                .attr({...attr});
+        } else {
+            let next_x = randomInt(M.J_W/2, M.J_W);
+            let next_y = randomInt(pos.y - M.J_H + P.h, pos.y - M.J_H/3);
+            attr.x = pos.x + next_x;
+            attr.y = next_y;
+            attr.w = T;
+            attr.h = T;
+            let block = C.e('2D, Canvas, Floor, Block, Persist')
+                .attr({...attr});
+            // dot
+            if (m == 0) {
+                block.addComponent('Dot, grass');
+            // dash set
+            } else {
+                block.addComponent('Dash, grassLeft');
+                let mid = C.e('2D, Canvas, Persist, Floor, Block, grassMid')
+                    .attr({...attr});
+                mid.x += T;
+                let end = C.e('2D, Canvas, Persist, Floor, Block, grassRight')
+                    .attr({...attr});
+                end.x += T+T;
+                block.attach(mid, end);
+                attr.w = T*3;
+            }
         }
-        C.e('2D, Canvas, Color, ' + attr.name)
-            .color('blue')
-            .attr({...attr});
         pos.x = attr.x + attr.w;
         pos.y = attr.y;
     }
-    C.e('2D, Canvas, Color, Final, Floor')
+
+    // position final area
+    C.e('2D, Canvas, Color, Persist, Final, Floor')
         .color('goldenrod')
         .attr({x: pos.x + 60, y: pos.y, w: W, h: 60});
 
-    C("Dash, Dot").each(function (e) {
-        this.addComponent('Floor, Persist');
+    // make markers
+    // encompass location of all dots and dashes
+    let bottom = C.e('2D, Canvas, Persist, Bottom, Color')
+        .attr({x: W, y: H, w: 0, h: 2})
+        .color("#de0000");
+    C("Block").each(function (i) {
+        bottom.x = Math.min(bottom.x, this.x);
+        bottom.w = Math.max(bottom.w, this.x + this.w) - bottom.xd;
     });
 
-    return morseMap;
+    let wiper = C.e('2D, Canvas, Persist, Wiper, Color')
+        .attr({x: bottom.x, y: bottom.y-T, w: 1, h: T*2})
+        .color("#de0000");
 }
 
 function setupAssets() {
-    C.sprite("alienGreen_stand.png", {player_idle: [0,0, 66, 92]});
+    C.sprite(66, 92, "alienGreen_stand.png", {player_idle: [0, 0]});
+    // C.sprite(66, 92, "p1_spritesheet.png", { player_idle: [0,0, 66, 92]});
+    C.sprite("signRight.png", {sign: [0, 0, T, T]});
+    C.sprite("grass.png", {grass: [0, 0, T, T]});
+    C.sprite("grassLeft.png", {grassLeft: [0, 0, T, T]});
+    C.sprite("grassMid.png", {grassMid: [0, 0, T, T]});
+    C.sprite("grassRight.png", {grassRight: [0, 0, T, T]});
 }
 
 C.defineScene("start", function () {
@@ -148,40 +233,41 @@ C.defineScene("main", function () {
     // TODO: obstacles
     // TODO: graphics
     // TODO: mouse control
-    // make map static, move generation into start scene with persistence
+    // TEST: make map static, move generation into start scene with persistence
+    let player = C.e('Player, 2D, Canvas, Twoway, Gravity, GroundAttacher, SpriteAnimation, player_idle')
+        .attr({ x: P.x, y: P.y })
+        .gravityConst(M.G)
+        .twoway(M.S, M.J)
+        // .preventGroundTunneling()
+        .gravity('Floor');
+    P.w = player.w;
+    P.h = player.h;
+
+    let startFloor = C.e('Floor, 2D, Canvas, Color')
+      .attr({x: -W/2, y: H - 100, w: W, h: 20})
+      .color("#40cf40");
+    C.e('2D, Canvas, sign').attr({x: -160, y: startFloor.y-T});
     msg = getUrlHash();
     if (!validateStr(msg)) {
         msg = "hello";
     }
 
-    let player = C.e('Player, 2D, Canvas, Twoway, Gravity, player_idle')
-        .attr({ x: I.x, y: I.y })
-        .gravityConst(M.G)
-        .twoway(M.S, M.J)
-        // .preventGroundTunneling()
-        .gravity('Floor');
-    P = { w: player.w, h: player.h };
-    C.e('Floor, 2D, Canvas, Color')
-        .attr({x: -W/2, y: H - 100, w: W, h: 20})
-        .color("#40cf40");
+    makeMap(msg);
 
-    generateMap(msg);
-
-
-    // encompass location of all dots and dashes
-    let bottom = C.e('2D, Canvas, Color, marker')
-        .attr({x: 0, y: H, w: 0, h: 2})
-        .color("#de0000");
-    C("Dash, Dot").each(function (e) {
-        if (bottom.w < this.x+ this.w) {
-            bottom.w = this.x+ this.w;
-        }
-    });
-
-    player.trigger('NewDirection', {x: 1, y: 1});
     player.bind('UpdateFrame', function(ev) {
-        if (this.x < -50) { this.x += 20; }  // don't go off map
-        if (this.y > H + 500) { C.enterScene("redo"); }  // fall to death
+        if (this.x < -50) { this.x += 10; }  // don't go off map
+        if (this.y > H + 500) { C.enterScene("redo"); }  // reset scene on fall
+    });
+    player.trigger('NewDirection', {x: 1, y: 1});
+    player.bind('NewDirection', function (dir) {
+        // TODO: animate
+        // y: 1 down, x: 1 right
+        this.last_dir_x = this.dir_x || -1;
+        this.dir_x = dir.x;
+        this.last_dir_y = this.dir_y || -1;
+        this.dir_y = dir.y;
+        if (this.dir_x == -1) { this.flip() }
+        else if (this.dir_x == 1) { this.unflip() }
     });
 
     // simplified smooth camera follow
@@ -191,14 +277,6 @@ C.defineScene("main", function () {
     cam.bind('UpdateFrame', function () {
         C.viewport.centerOn(this, 250);
     })
-    player.bind('NewDirection', function (dir) {
-        this.last_dir_x = this.dir_x || -1;
-        this.dir_x = dir.x;
-        this.last_dir_y = this.dir_y || -1;
-        this.dir_y = dir.y;
-        if (this.dir_x == -1) { this.flip() }
-        else if (this.dir_x == 1) { this.unflip() }
-    });
     player.bind('UpdateFrame', function (ev) {
         let x = cam.x, y = cam.y;
         // if (player.dir_y == 1) { y = this.y }
@@ -207,11 +285,13 @@ C.defineScene("main", function () {
         else if (player.dir_x == -1) { x = this.x + this.w - cam.w }
         cam.attr({x: x, y: y});
     });
+
     player.bind('LandedOnGround', function(ground) {
         if (ground.has('Final')) {
             Clog('finished!');
-
-            // C.enterScene('end');
+            V = { x: C.viewport.x, y: C.viewport.y };
+            // C.enterScene('endScene');
+            C.enterScene('fadeToEnd');
         }
     })
 });
@@ -219,16 +299,42 @@ C.defineScene("main", function () {
 // called from main and just goes back to main
 // ensures no entities from main survives
 C.defineScene("redo", function () {
-    C('Dot, Dash').each(function (i) {
+    C('Persist').each(function (i) {
         this.destroy();
     })
     C.enterScene("main");
 });
 
-C.defineScene("end", function () {
+C.defineScene("fadeToEnd", function () {
     // TODO: make msg
     // TODO: restart with new msg
+    C.viewport.x = V.x;
+    C.viewport.y = V.y;
+    let FinalObjs = C('Final');
+    FinalObjs.each(function (e) {
+        if (this.has('2D')) { this.addComponent('Tween') };
+    this.tween({alpha: 0}, 500);
+    });
+    setTimeout(function(){C('Final').destroy(); C.enterScene('end');}, 500);
     return
 });
 
+C.defineScene("end", function () {
+    C.viewport.x = V.x;
+    C.viewport.y = V.y;
+    C('Bottom').addComponent('Floor');
+    C('Dot, Dash, Space, Word').each(function (i) {
+        this.removeComponent('Floor');
+        this.addComponent('Gravity');
+        this.gravityConst(M.G/2).gravity('Floor');
+    });
+    C.viewport.zoom(0.25,W/2, H/2, 1500);
+
+    let inputArea = document.getElementById('inputArea');
+    inputArea.style.display = 'block';
+    inputArea.style.width = C.viewport.width + 'px';
+    inputArea.style.marginTop = 20 + 'px';
+});
+
+// kick off
 C.enterScene("start");
