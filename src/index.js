@@ -1,4 +1,6 @@
+// little ditty
 let C = require('craftyjs');
+let Tone = require("tone");
 
 // viewport size
 let W = 800, H = 480;
@@ -9,8 +11,10 @@ let P = { x: 100, y: 360, w: 0, h: 0 };
 // player gravity speed jump strength, jump width, jump height
 // TODO: magic values should be mathematically determined
 let M = { G: 1 * 2500, S: 6 * 50, J: 17 * 50, J_W: 234, J_H: 170 };
-// will hold viewport {x: x, y: y} positions for replay
-let VPos = {};
+// area to zoom to at the end containg all blocks
+let ZRect = {}, Bottom = {}, Marker = {};
+let Msg = '';
+let MsgTrain = [];
 
 C.init(W, H);
 C.background('#FFF');
@@ -19,7 +23,9 @@ let Clog = C.log;
 
 let assets = {
     // see `http://craftyjs.com/api/Crafty-load.html
-    "audio": {},
+    "audio": {
+        "tone1": ["tone1.wav"]
+    },
     "images": [
         "alienGreen_badge1.png",
         "alienGreen_stand.png",
@@ -69,8 +75,25 @@ let assets = {
         "signRight.png",
         "star.png",
         "sun.png"
-    ]
+    ],
+    "sprites": {
+
+    }
 };
+
+function beep(freq=440) {
+
+}
+
+function setupAssets() {
+    C.sprite(66, 92, "alienGreen_stand.png", {player_idle: [0, 0]});
+    // C.sprite(66, 92, "p1_spritesheet.png", { player_idle: [0,0, 66, 92]});
+    C.sprite("signRight.png", {sign: [0, 0, T, T]});
+    C.sprite("grass.png", {grass: [0, 0, T, T]});
+    C.sprite("grassLeft.png", {grassLeft: [0, 0, T, T]});
+    C.sprite("grassMid.png", {grassMid: [0, 0, T, T]});
+    C.sprite("grassRight.png", {grassRight: [0, 0, T, T]});
+}
 
 let morse = {
     'a': '.-',    'b': '-...',  'c': '-.-.', 'd': '-..',
@@ -122,10 +145,10 @@ function randomInt(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function makeMap(msg) {
+function makeMap() {
     // morseMap: 0: ., 1: -, 2: /, -1: end of a character
     var morseMap = [];
-    [...msg].forEach(function (c) {
+    [...Msg].forEach(function (c) {
         [...morse[c]].forEach(function (s) {
             let t = (s==='.') ? 0 : (s==='-') ? 1 : 2;
             morseMap.push(t);
@@ -146,14 +169,15 @@ function makeMap(msg) {
             // roll back positioning
             attr.x = pos.x;
             attr.y = pos.y;
-            attr.w = 0;
-            attr.h = 0;
+            attr.w = 2;
+            attr.h = 2;
             let name = (m < 0) ? 'Word' : 'Space';
-            let block = C.e('2D, Canvas, Block, Persist, ' + name)
+            let block = C.e('2D, Canvas, Block, Persist, Color, ' + name)
+                .color('green')
                 .attr({...attr});
         } else {
-            let next_x = randomInt(M.J_W/2, M.J_W);
-            let next_y = randomInt(pos.y - M.J_H + P.h, pos.y - M.J_H/3);
+            let next_x = C.math.randomInt(M.J_W/2, M.J_W);
+            let next_y = C.math.randomInt(pos.y - M.J_H + P.h, pos.y - M.J_H/3);
             attr.x = pos.x + next_x;
             attr.y = next_y;
             attr.w = T;
@@ -165,14 +189,14 @@ function makeMap(msg) {
                 block.addComponent('Dot, grass');
             // dash set
             } else {
-                block.addComponent('Dash, grassLeft');
-                let mid = C.e('2D, Canvas, Persist, Floor, Block, grassMid')
+                block.addComponent('Dash, grassRight');
+                let mid = C.e('2D, Canvas, Floor, Persist, Block, grassMid')
                     .attr({...attr});
-                mid.x += T;
-                let end = C.e('2D, Canvas, Persist, Floor, Block, grassRight')
+                let end = C.e('2D, Canvas, Floor, Persist, Block, grassLeft')
                     .attr({...attr});
-                end.x += T+T;
-                block.attach(mid, end);
+                block.x += T*2;
+                mid.x   += T*1;
+                end.x   += T*0;
                 attr.w = T*3;
             }
         }
@@ -187,27 +211,17 @@ function makeMap(msg) {
 
     // make markers
     // encompass location of all dots and dashes
-    let bottom = C.e('2D, Canvas, Persist, Bottom, Color')
-        .attr({x: W, y: H, w: 0, h: 2})
-        .color("#de0000");
+    Bottom = { x: W, y: H, w: 0, h: 2 };
+    ZRect = { x: W, y: H, w: 0, h: 0, y_init: null };
     C("Block").each(function (i) {
-        bottom.x = Math.min(bottom.x, this.x);
-        bottom.w = Math.max(bottom.w, this.x + this.w) - bottom.xd;
+        Bottom.x = Math.min(Bottom.x, this.x);
+        Bottom.w = Math.max(Bottom.w, this.x + this.w) - Bottom.x;
+        ZRect.x = Math.min(ZRect.x, this.x);
+        ZRect.y = Math.min(ZRect.y, this.y);
+        ZRect.w = Math.max(ZRect.w, this.x + this.w) - ZRect.x;
+        ZRect.y_init = ZRect.y_init || (this.y+this.h);
+        ZRect.h = Math.abs(ZRect.y-ZRect.y_init);
     });
-
-    let wiper = C.e('2D, Canvas, Persist, Wiper, Color')
-        .attr({x: bottom.x, y: bottom.y-T, w: 1, h: T*2})
-        .color("#de0000");
-}
-
-function setupAssets() {
-    C.sprite(66, 92, "alienGreen_stand.png", {player_idle: [0, 0]});
-    // C.sprite(66, 92, "p1_spritesheet.png", { player_idle: [0,0, 66, 92]});
-    C.sprite("signRight.png", {sign: [0, 0, T, T]});
-    C.sprite("grass.png", {grass: [0, 0, T, T]});
-    C.sprite("grassLeft.png", {grassLeft: [0, 0, T, T]});
-    C.sprite("grassMid.png", {grassMid: [0, 0, T, T]});
-    C.sprite("grassRight.png", {grassRight: [0, 0, T, T]});
 }
 
 C.defineScene("start", function () {
@@ -247,12 +261,11 @@ C.defineScene("main", function () {
       .attr({x: -W/2, y: H - 100, w: W, h: 20})
       .color("#40cf40");
     C.e('2D, Canvas, sign').attr({x: -160, y: startFloor.y-T});
-    msg = getUrlHash();
-    if (!validateStr(msg)) {
-        msg = "hello";
+    Msg = getUrlHash();
+    if (!validateStr(Msg)) {
+        Msg = "hello";
     }
-
-    makeMap(msg);
+    makeMap();
 
     player.bind('UpdateFrame', function(ev) {
         if (this.x < -50) { this.x += 10; }  // don't go off map
@@ -315,25 +328,71 @@ C.defineScene("fadeToEnd", function () {
         if (this.has('2D')) { this.addComponent('Tween') };
     this.tween({alpha: 0}, 500);
     });
-    setTimeout(function(){C('Final').destroy(); C.enterScene('end');}, 500);
-    return
+    C.e('Delay').delay(function () {
+        C('Final').each(function (i) {
+            this.destroy();
+        });
+        C.enterScene('end');
+    }, 500);
 });
 
 C.defineScene("end", function () {
     C.viewport.x = V.x;
     C.viewport.y = V.y;
-    C('Bottom').addComponent('Floor');
-    C('Dot, Dash, Space, Word').each(function (i) {
-        this.removeComponent('Floor');
+    let bottom = C.e('2D, Canvas, Bottom, Color')
+        .attr({...Bottom})
+        .color("#de0000");
+    let marker = C.e('2D, Canvas, Color, Collision, Tween')
+        .attr({x: Bottom.x, y: Bottom.y-T, w: 1, h: T*2})
+        .color("#de0000");
+    let zrect = C.e('2D, Canvas, Color, ZRect')
+        .color('black', 0.2)
+        .attr({...ZRect});
+    C('Block').each(function (i) {
         this.addComponent('Gravity');
-        this.gravityConst(M.G/2).gravity('Floor');
+        this.gravityConst(M.G/2).gravity('Bottom');
     });
-    C.viewport.zoom(0.25,W/2, H/2, 1500);
+    // create colliders
+    C('Dot, Dash').each(function (i) {
+        let collider = C.e('2D, Canvas, Collision, Color, Collider')
+            .attr({y: Bottom.y - 16, h: 16})
+            .color("red");
+        if (this.has('Dot')) {
+            collider.addComponent('Dot')
+            collider.x = this.x;
+            collider.w = this.w;
+        } else {
+            collider.addComponent('Dash')
+            collider.x = this.x-(T*2);
+            collider.w = T*3;
+        }
+    })
 
-    let inputArea = document.getElementById('inputArea');
-    inputArea.style.display = 'block';
-    inputArea.style.width = C.viewport.width + 'px';
-    inputArea.style.marginTop = 20 + 'px';
+    marker.characterCounter = 0;
+    zrect.y = Bottom.y - ZRect.h;
+    let zoom_factor = Math.min(C.viewport.width/(zrect.w+60),
+                               C.viewport.height/(zrect.h+60));
+    zoom_factor = (zoom_factor > 1) ? 1: zoom_factor;
+    let zoom_time = 2000;
+    C.viewport.zoom(zoom_factor, zrect.x+zrect.w/2, zrect.y+zrect.h/2, zoom_time);
+    function postZoom () {
+        // zoom in close to marker and follow
+        // C.viewport.follow(marker);
+        let inputArea = document.getElementById('inputArea');
+        inputArea.style.display = 'block';
+        inputArea.style.width = C.viewport.width + 'px';
+        inputArea.style.marginTop = 20 + 'px';
+        var osc = new Tone.Oscillator(440, "sine").toMaster();
+        marker.onHit('Collider', function (hit, first) {
+            if (first) {
+                osc.start();
+            }
+        }, function () {
+            osc.stop();
+        });
+        marker.tween({x: zrect.x+zrect.w+20}, (zrect.w/T)*100);
+    }
+    C.e('Delay').delay(postZoom, zoom_time);
 });
 
 // kick off

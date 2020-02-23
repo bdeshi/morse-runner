@@ -1,5 +1,6 @@
 dependencies:
   craftyjs: 0.9.0
+  tone: 13.8.25
 devDependencies:
   browserify: 16.5.0
   eslint: 6.8.0
@@ -4083,6 +4084,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-zu78cXp2xDFvEm0LnbqlXX598Bo=
+  /tone/13.8.25:
+    dev: false
+    resolution:
+      integrity: sha512-8QqmLn+/R+Urib/78zf93+NqFLddXS777kQO7+EbJHwqy+nmug+SJFRp2KIytT0LQY2sJBiopNb2ceHA8uQQJg==
   /trim-newlines/1.0.0:
     dev: true
     engines:
@@ -4387,3 +4392,4 @@ specifiers:
   pug: ^2.0.4
   stylus: ^0.54.7
   tern: ^0.24.3
+  tone: ^13.8.25
