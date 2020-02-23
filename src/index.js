@@ -147,15 +147,17 @@ function randomInt(min, max) {
 
 function makeMap() {
     // morseMap: 0: ., 1: -, 2: /, -1: end of a character
-    var morseMap = [];
+    let morseMap = [];
+    MsgTrain = [];
     [...Msg].forEach(function (c) {
         [...morse[c]].forEach(function (s) {
             let t = (s==='.') ? 0 : (s==='-') ? 1 : 2;
             morseMap.push(t);
+            MsgTrain.push(t);
         });
-        morseMap.push(-1);
+        MsgTrain.push(c);
     });
-    Clog('morse map: ' + morseMap);
+    Clog('morse map: ' + MsgTrain);
     // TODO: generate map
     // TODO: blocks distance must be within jump width
     // each new block is placed somewhere after (pox.x,pos.y)
@@ -339,14 +341,11 @@ C.defineScene("fadeToEnd", function () {
 C.defineScene("end", function () {
     C.viewport.x = V.x;
     C.viewport.y = V.y;
-    let bottom = C.e('2D, Canvas, Bottom, Color')
-        .attr({...Bottom})
-        .color("#de0000");
-    let marker = C.e('2D, Canvas, Color, Collision, Tween')
+    let bottom = C.e('2D, Canvas, Bottom')
+        .attr({...Bottom});
+    let marker = C.e('2D, Canvas, Collision, Tween')
         .attr({x: Bottom.x, y: Bottom.y-T, w: 1, h: T*2})
-        .color("#de0000");
-    let zrect = C.e('2D, Canvas, Color, ZRect')
-        .color('black', 0.2)
+    let zrect = C.e('2D, Canvas, ZRect')
         .attr({...ZRect});
     C('Block').each(function (i) {
         this.addComponent('Gravity');
@@ -355,8 +354,8 @@ C.defineScene("end", function () {
     // create colliders
     C('Dot, Dash').each(function (i) {
         let collider = C.e('2D, Canvas, Collision, Color, Collider')
-            .attr({y: Bottom.y - 16, h: 16})
-            .color("red");
+            .attr({y: Bottom.y - 70, h: 70})
+            .color("red", 0);
         if (this.has('Dot')) {
             collider.addComponent('Dot')
             collider.x = this.x;
@@ -368,7 +367,6 @@ C.defineScene("end", function () {
         }
     })
 
-    marker.characterCounter = 0;
     zrect.y = Bottom.y - ZRect.h;
     let zoom_factor = Math.min(C.viewport.width/(zrect.w+60),
                                C.viewport.height/(zrect.h+60));
@@ -376,6 +374,7 @@ C.defineScene("end", function () {
     let zoom_time = 2000;
     C.viewport.zoom(zoom_factor, zrect.x+zrect.w/2, zrect.y+zrect.h/2, zoom_time);
     function postZoom () {
+        let charCounter = 0;
         // zoom in close to marker and follow
         // C.viewport.follow(marker);
         let inputArea = document.getElementById('inputArea');
@@ -385,7 +384,13 @@ C.defineScene("end", function () {
         var osc = new Tone.Oscillator(440, "sine").toMaster();
         marker.onHit('Collider', function (hit, first) {
             if (first) {
+                hit[0].obj.color('red', 1);
                 osc.start();
+                charCounter++;
+                if (typeof MsgTrain[charCounter] === 'string') {
+                    inputArea.textContent += MsgTrain[charCounter];
+                    charCounter++;
+                }
             }
         }, function () {
             osc.stop();
