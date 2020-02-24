@@ -95,6 +95,7 @@ function setupAssets() {
     C.sprite("grassLeft.png", {grassLeft: [0, 0, T, T]});
     C.sprite("grassMid.png", {grassMid: [0, 0, T, T]});
     C.sprite("grassRight.png", {grassRight: [0, 0, T, T]});
+    C.sprite(216, 139, "cloud3.png", {cloudSpace: [0, 0]});
 }
 
 let morse = {
@@ -119,12 +120,16 @@ function convertStr(str) {
 }
 
 function validateStr(str) {
+    // return 1: ok, 0: too short, -1: too long, -2: bad chars
     if (str.length == 0) {
-        return false;
+        return 0;
+    }    
+    if (str.length > 20) {
+        return -1;
     }
     for (i = 0; i < str.length; i++) {
         if (!morse.hasOwnProperty(str[i])) {
-            return false;
+            return -2;
         }
     }
     return true;
@@ -143,6 +148,7 @@ function getUrlHash() {
 }
 
 function makeMap() {
+    Freeze = false;
     // morseMap: 0: ., 1: -, 2: /, -1: end of a character
     let morseMap = [];
     MsgTrain = [];
@@ -159,27 +165,38 @@ function makeMap() {
     // TODO: blocks distance must be within jump width
     // each new block is placed somewhere after (pox.x,pos.y)
     // withing a limited distance
+    let cloudPlacedLast = false;
     let h = T, w = T;
     let pos = { x: W/2, y: P.y };
     for (i=0; i < morseMap.length; i++) {
         let attr = {x: 0, y: 0, w: 0, h: 0};
         let m = morseMap[i];
-
-        let next_x = C.math.randomInt(M.J_W/2, M.J_W);
-        let next_y = C.math.randomInt(pos.y - M.J_H + P.h, pos.y - M.J_H/3);
-
-        if (m === 2) {
-            Clog('found space');
-            attr.x = pos.x + next_x;
-            attr.y = pos.y;
-            attr.w = 200;
-            attr.h = 2;
-            let name = 'Space';
-            let block = C.e('2D, Canvas, Block, Floor, Persist, Color, Morse, ' + name)
-                .color('green')
-                .origin("center")
-                .attr({...attr});
+        let next_x, next_y;
+        if (cloudPlacedLast) {
+            next_x = 134, next_y = pos.y;
         } else {
+            next_x = C.math.randomInt(M.J_W/2, M.J_W);
+        }
+        next_y = C.math.randomInt(pos.y - M.J_H + P.h, pos.y - M.J_H/3);
+
+        //space
+        if (m === 2) {
+            Clog('space!');
+            attr.x = pos.x + 134;
+            attr.y = pos.y;
+            attr.w = 80;
+            attr.h = T - 20;
+            let name = 'Space';
+            let block = C.e('2D, Canvas, Block, Floor, Persist, Morse, ' + name)
+                .attr({...attr});
+            let cloud = C.e("2D, Canvas, Persist, cloudSpace")
+                .attr({x:attr.x-64, y:attr.y-40});
+            block.attach(cloud);
+            cloudPlacedLast = true;
+
+        // dots & dashes
+        } else {
+            cloudPlacedLast = false;
             attr.x = pos.x + next_x;
             attr.y = next_y;
             attr.w = T;
@@ -189,23 +206,25 @@ function makeMap() {
             // dot
             if (m == 0) {
                 block.addComponent('Dot, Morse, grass');
-                let randPeriod = C.math.randomInt(0,20);
-                let randDist = C.math.randomInt(-5,5);
-                block.bind('UpdateFrame', function (ev) {
-                    if (!Freeze) {
-                        block.y += (randDist+10) * Math.sin((randPeriod+C.frame())*0.1);
-                    }
-                });
+                let chance = C.math.randomInt(0,2) == 1;
+                if (chance) {
+                    let randPeriod = C.math.randomInt(0,20);
+                    let randDist = C.math.randomInt(-5,5);
+                    block.bind('UpdateFrame', function (ev) {
+                        if (!Freeze) {
+                            block.y += (randDist+7) * Math.sin((randPeriod+C.frame())*0.1);
+                        }
+                    });
+                }
             // dash set
             } else {
-                block.addComponent('Dash, Morse, grassRight');
+                block.addComponent('Dash, Morse, grassLeft');
                 let mid = C.e('2D, Canvas, Floor, Persist, Block, grassMid')
                     .attr({...attr});
-                let end = C.e('2D, Canvas, Floor, Persist, Block, grassLeft')
+                let end = C.e('2D, Canvas, Floor, Persist, Block, grassRight')
                     .attr({...attr});
-                block.x += T*2;
-                mid.x   += T*1;
-                end.x   += T*0;
+                mid.x += T*1;
+                end.x += T*2;
                 attr.w = T*3;
             }
         }
@@ -216,7 +235,7 @@ function makeMap() {
     // position final area
     C.e('2D, Canvas, Color, Persist, Final, Floor')
         .color('goldenrod')
-        .attr({x: pos.x + 60, y: pos.y, w: W, h: 60});
+        .attr({x: pos.x + 100, y: pos.y, w: W, h: 60});
 
     // make markers
     // encompass location of all dots and dashes
@@ -277,6 +296,7 @@ C.defineScene("main", function () {
     makeMap();
 
     player.bind('UpdateFrame', function(ev) {
+    
         if (this.x < -50) { this.x += 10; }  // don't go off map
         if (this.y > H + 500) { C.enterScene("redo"); }  // reset scene on fall
     });
@@ -352,46 +372,39 @@ C.defineScene("end", function () {
     Freeze = true;
     C.viewport.x = V.x;
     C.viewport.y = V.y;
-    let bottom = C.e('2D, Canvas, Bottom, Color')
-        .color('blue')
+    let bottom = C.e('2D, Canvas, Bottom')
         .attr({...Bottom});
     let marker = C.e('2D, Canvas, Collision, Tween')
         .attr({x: -50 /*Bottom.x*/, y: Bottom.y-T, w: 1, h: T*2})
     let zrect = C.e('2D, Canvas, ZRect')
         .attr({...ZRect});
-    C('Block, Morse').each(function (i) {
-        /*this.unbind('UpdateFrame');
-        if (this.has("Dot")) {
-            this.y = this.orig_y;
-        } else if (this.has('Space')) {
-            this.rotation = this.orig_rot;
-        }*/
-        this.addComponent('Gravity');
-        this.gravityConst(M.G/2).gravity('Bottom');
-    });
+
     // create colliders
     C('Morse').each(function (i) {
-        let collider = C.e('2D, Canvas, Collision, Color, Collider')
-            .attr({y: Bottom.y - 70, h: 70})
+        let collider = C.e('2D, Canvas, Collision, Color')
+            .attr({y: Bottom.y + 4, h: 20})
             .color("red", 0);
         if (this.has('Dot')) {
-            collider.addComponent('Dot');
+            collider.addComponent('DotCollider');
             collider.x = this.x;
             collider.w = this.w;
         } else if (this.has('Dash')) {
-            collider.addComponent('Dash');
-            collider.x = this.x-(T*2);
+            collider.addComponent('DashCollider');
+            collider.x = this.x;
             collider.w = T*3;
         } else {
-            collider.addComponent('Space');
+            collider.addComponent('SpaceCollider');
             collider.x = this.x;
-            collider.w = this.w/2;
-            collider.h = 30;
+            collider.w = this.w;
             // collider.origin("center");
             // collider.rotation = 90;
         }
-    })
-
+    });
+    // fall down (or up)
+    C('Block').each(function (i) {
+        this.addComponent('Gravity');
+        this.gravityConst(M.G/2).gravity('Bottom');
+    });
     zrect.y = Bottom.y - ZRect.h;
     let zoom_factor = Math.min(C.viewport.width/(zrect.w+60),
                                C.viewport.height/(zrect.h+60));
@@ -400,6 +413,10 @@ C.defineScene("end", function () {
     Osc.start();
     C.viewport.zoom(zoom_factor, zrect.x+zrect.w/2, zrect.y+zrect.h/2, zoom_time);
     function postZoom () {
+        C('cloudSpace').each(function (i) {
+            this.addComponent('Tween');
+            this.tween({y: -C.viewport.y-this.h}, 4000, 'easeOutQuad');
+        });
         Osc.stop();
         let charCounter = 0;
         // zoom in close to marker and follow
@@ -408,11 +425,11 @@ C.defineScene("end", function () {
         inputArea.style.display = 'block';
         inputArea.style.width = C.viewport.width + 'px';
         inputArea.style.marginTop = 20 + 'px';
-        marker.onHit('Collider', function (hit, first) {
+        marker.onHit('Collision', function (hit, first) {
             if (first === true) {
                 let block = hit[0].obj; // there's no overlap so always only one entity hits
                 block.color('red', 1);
-                if (!block.has('Space')) {
+                if (!block.has('SpaceCollider')) {
                     Osc.start();
                 }
                 charCounter++;
@@ -424,6 +441,9 @@ C.defineScene("end", function () {
         }, function () {
             Osc.stop();
         });
+        if (charCounter >= MsgTrain.length) {
+            Osc.stop();
+        }
         marker.tween({x: zrect.x+zrect.w+20}, (zrect.w/T)*100);
     }
     C.e('Delay').delay(postZoom, zoom_time);
