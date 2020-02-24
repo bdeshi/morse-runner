@@ -26,7 +26,6 @@ let Clog = C.log;
 let assets = {
     // see `http://craftyjs.com/api/Crafty-load.html
     "audio": {
-        "tone1": ["tone1.wav"]
     },
     "images": [
         "alienGreen_badge1.png",
@@ -73,13 +72,21 @@ let assets = {
         "lock_yellow.png",
         "moon.png",
         "moonFull.png",
-        "p1_spritesheet.png",
         "signRight.png",
         "star.png",
         "sun.png"
     ],
     "sprites": {
-
+        "p1_spritesheet.png": {
+            tile: 66,
+            tileh: 92,
+            map: {
+                "player_idle": [0, 2],
+                "player_jump": [6, 1]
+            },
+            paddingX: 2,
+            paddingY: 4
+        }
     }
 };
 
@@ -88,8 +95,8 @@ function beep(freq=440) {
 }
 
 function setupAssets() {
-    C.sprite(66, 92, "alienGreen_stand.png", {player_idle: [0, 0]});
-    // C.sprite(66, 92, "p1_spritesheet.png", { player_idle: [0,0, 66, 92]});
+    // C.sprite(66, 92, "p1_spritesheet.png", { player_idle: [0,0]});
+    C.sprite(47, 47, "alienGreen_badge1.png", { player_face: [0,0]});
     C.sprite("signRight.png", {sign: [0, 0, T, T]});
     C.sprite("grass.png", {grass: [0, 0, T, T]});
     C.sprite("grassLeft.png", {grassLeft: [0, 0, T, T]});
@@ -276,12 +283,12 @@ C.defineScene("main", function () {
     // TODO: graphics
     // TODO: mouse control
     // TEST: make map static, move generation into start scene with persistence
-    let player = C.e('Player, 2D, Canvas, Twoway, Gravity, GroundAttacher, SpriteAnimation, player_idle')
+    let player = C.e('Player, 2D, Canvas, Twoway, Gravity, GroundAttacher, player_idle, SpriteAnimation')
         .attr({ x: P.x, y: P.y })
         .gravityConst(M.G)
         .twoway(M.S, M.J)
-        // .preventGroundTunneling()
-        .gravity('Floor');
+        .gravity('Floor')
+        .preventGroundTunneling();
     P.w = player.w;
     P.h = player.h;
 
