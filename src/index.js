@@ -77,15 +77,12 @@ let assets = {
         "sun.png"
     ],
     "sprites": {
-        "p1_spritesheet.png": {
+        "player_spritesheet.png": {
             tile: 66,
             tileh: 92,
             map: {
-                "player_idle": [0, 2],
-                "player_jump": [6, 1]
-            },
-            paddingX: 2,
-            paddingY: 4
+                "player_idle": [0, 0]
+            }
         }
     }
 };
@@ -130,7 +127,7 @@ function validateStr(str) {
     // return 1: ok, 0: too short, -1: too long, -2: bad chars
     if (str.length == 0) {
         return 0;
-    }    
+    }
     if (str.length > 20) {
         return -1;
     }
@@ -213,7 +210,7 @@ function makeMap() {
             // dot
             if (m == 0) {
                 block.addComponent('Dot, Morse, grass');
-                let chance = C.math.randomInt(0,2) == 1;
+                let chance = C.math.randomInt(0,4) > 2;
                 if (chance) {
                     let randPeriod = C.math.randomInt(0,20);
                     let randDist = C.math.randomInt(-5,5);
@@ -283,12 +280,15 @@ C.defineScene("main", function () {
     // TODO: graphics
     // TODO: mouse control
     // TEST: make map static, move generation into start scene with persistence
-    let player = C.e('Player, 2D, Canvas, Twoway, Gravity, GroundAttacher, player_idle, SpriteAnimation')
+    let player = C.e('Player, 2D, Canvas, Twoway, Gravity, GroundAttacher, SpriteAnimation, player_idle')
         .attr({ x: P.x, y: P.y })
         .gravityConst(M.G)
         .twoway(M.S, M.J)
         .gravity('Floor')
-        .preventGroundTunneling();
+        .preventGroundTunneling()
+        .reel('jump', 500, 5, 0, 1)
+        .reel('idle', 500, 0, 0, 1)
+        .reel('move', 500, 1, 0, 4);
     P.w = player.w;
     P.h = player.h;
 
@@ -303,7 +303,7 @@ C.defineScene("main", function () {
     makeMap();
 
     player.bind('UpdateFrame', function(ev) {
-    
+
         if (this.x < -50) { this.x += 10; }  // don't go off map
         if (this.y > H + 500) { C.enterScene("redo"); }  // reset scene on fall
     });
@@ -318,7 +318,14 @@ C.defineScene("main", function () {
         if (this.dir_x == -1) { this.flip() }
         else if (this.dir_x == 1) { this.unflip() }
     });
-
+    player.bind('CheckJumping', function (ground) {
+        if (!ground) {
+            //player.animate('jump', -1);
+        }
+    })
+    player.bind('LandedOnGround', function (ground) {
+        //player.animate('idle', -1);
+    })
     // simplified smooth camera follow
     let cam = C.e('2D')
         .attr({x: player.x, y: H - 150, w: 350, h: 100});
