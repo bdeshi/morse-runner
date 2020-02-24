@@ -5,14 +5,19 @@
   "repository": "github.com/bdeshi/morse-runner",
   "author": "bdeshi",
   "license": "MIT",
+  "scripts": {
+    "preinstall": "node -e \"!process.env.npm_config_user_agent.startsWith('pnpm/') && !console.log('Use \\`npx pnpm install\\` to install dependencies in this repository\\n') && process.exit(1)\""
+  },
   "dependencies": {
-    "craftyjs": "^0.9.0",
-    "tone": "^13.8.25"
+    "craftyjs": "^0.9.0"
   },
   "devDependencies": {
+    "@babel/core": "^7.8.4",
+    "@babel/preset-env": "^7.8.4",
     "browserify": "^16.5.0",
     "eslint": "^6.8.0",
     "grunt": "^1.0.4",
+    "grunt-babel": "^8.0.0",
     "grunt-browserify": "^5.3.0",
     "grunt-concurrent": "^3.0.0",
     "grunt-contrib-clean": "^2.0.0",

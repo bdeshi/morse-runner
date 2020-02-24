@@ -8,6 +8,15 @@ head(lang='en')
 
 body
   #cr-stage
-  #inputArea
+  #inputContainer
+    #inputArea
+      p#info create a level with your own message!
+      input#input(type=text)
+      p#status.status
+      p#more
+        a(href="https://en.wikipedia.org/wiki/Morse_code") learn more about Morse code
+  #msgArea
+  #credits made by
+    a(href="htps://bdeshi.space") sammay
 
 script(src='/index.js')

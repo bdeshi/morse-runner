@@ -1,12 +1,46 @@
 // little ditty
 let C = require('craftyjs');
-let Tone = require("tone");
-let Osc = new Tone.Oscillator(440, "sine").toMaster();
+let context = new (window.AudioContext || window.webkitAudioContext)();
+class Beeper {
+    constructor(context) {
+        this.context = context;
+    }
+    init() {
+        this.oscillator = this.context.createOscillator();
+        this.gainNode = this.context.createGain();
+        this.oscillator.connect(this.gainNode);
+        this.gainNode.connect(this.context.destination);
+        this.oscillator.type = 'sine';
+    }
+    play(value=440, time=0) {
+        this.init();
+        this.oscillator.frequency.value = value;
+        this.gainNode.gain.setValueAtTime(1, this.context.currentTime);
+        this.oscillator.start(time);
+        // this.stop(time);
+    }
+    stop(time=0) {
+        this.oscillator.stop(time);
+    }
+}
+let Osc = new Beeper(context);
+
+function fontFit(el) {
+    let fontSize = el.style.fontSize ||
+        window.getComputedStyle(el, null).getPropertyValue('font-size');
+    el.style.fontSize = fontSize;
+    while (el.scrollHeight > el.offsetHeight) {
+        let newsize = parseInt(el.style.fontSize.slice(0,-2))-1;
+        el.style.fontSize = (newsize).toString() + 'px';
+    }
+}
 
 // viewport size
 let W = 800, H = 480;
 // sprite tile default ht
 let T = 70;
+// controls speed of marker/wiper to display morse msg
+let MarkerDelay = 70;
 // player sprite w/h, will take on sprite asset dimensions
 let P = { x: 100, y: 360, w: 0, h: 0 };
 // player gravity speed jump strength, jump width, jump height
@@ -14,6 +48,7 @@ let P = { x: 100, y: 360, w: 0, h: 0 };
 let M = { G: 1 * 2500, S: 6 * 50, J: 17 * 50, J_W: 234, J_H: 170 };
 // area to zoom to at the end containg all blocks
 let ZRect = {}, Bottom = {}, Marker = {};
+// contains morse message and display helper
 let Msg = '';
 let MsgTrain = [];
 
@@ -22,85 +57,57 @@ C.init(W, H);
 C.background('#FFF');
 C.loggingEnabled = true;
 let Clog = C.log;
+let DefStr = "hi";
 
 let assets = {
-    // see `http://craftyjs.com/api/Crafty-load.html
     "audio": {
+        "footstep": [],
+        "bg": [],
+        "outro": []
     },
     "images": [
-        "alienGreen_badge1.png",
-        "alienGreen_stand.png",
-        "backgroundCastles.png",
         "backgroundColorForest.png",
         "backgroundColorGrass.png",
-        "backgroundDesert.png",
-        "bush1.png",
-        "bush2.png",
-        "bush3.png",
-        "bush4.png",
-        "bushAlt2.png",
-        "bushAlt3.png",
-        "bushAlt4.png",
-        "bushOrange1.png",
-        "bushOrange2.png",
-        "bushOrange3.png",
-        "bushOrange4.png",
-        "cloud1.png",
-        "cloud2.png",
-        "cloud3.png",
-        "cloud4.png",
-        "cloud5.png",
-        "cloud6.png",
-        "cloud7.png",
-        "cloud8.png",
-        "coinGold.png",
-        "fence.png",
-        "flagRed.png",
-        "flagRed2.png",
-        "gemYellow.png",
-        "grass.png",
-        "grassHalf.png",
-        "grassHalfLeft.png",
-        "grassHalfMid.png",
-        "grassHalfRight.png",
-        "grassLeft.png",
-        "grassMid.png",
-        "grassRight.png",
-        "keyGreen.png",
-        "ladder_mid.png",
-        "ladder_top.png",
-        "lock_yellow.png",
-        "moon.png",
-        "moonFull.png",
-        "signRight.png",
-        "star.png",
-        "sun.png"
-    ],
-    "sprites": {
-        "player_spritesheet.png": {
-            tile: 66,
-            tileh: 92,
-            map: {
-                "player_idle": [0, 0]
-            }
-        }
-    }
+        "platform_spritesheet.png",
+        "player_spritesheet.png"
+    ]
 };
 
-function beep(freq=440) {
-
+function assignSprites() {
+    C.sprite(66, 92, "player_spritesheet.png", {
+        "player_idle": [0, 0]
+    });
+    C.sprite("platform_spritesheet.png", {
+        "cloud3": [0, 0, 216, 139],
+        "moonFull": [216, 0, 84, 84],
+        "sun": [300, 0, 84, 84],
+        "fence": [216, 84, 104, 77],
+        "flagRed": [0, 139, 67, 70],
+        "flagRed2": [67, 139, 67, 70],
+        "grass": [134, 139, 70, 70],
+        "grassCliffLeft": [204, 161, 70, 70],
+        "grassLeft": [274, 161, 70, 70],
+        "grassMid": [0, 209, 70, 70],
+        "ladder_mid": [70, 209, 70, 70],
+        "ladder_top": [140, 231, 70, 70],
+        "lock_yellow": [210, 231, 70, 70],
+        "signRight": [320, 84, 64, 70],
+        "bush3": [280, 231, 59, 52],
+        "springboardUp": [0, 279, 70, 50],
+        "bushAlt4": [70, 279, 50, 48],
+        "player_badge": [339, 231, 47, 47],
+        "star": [120, 301, 52, 46],
+        "bush4": [172, 301, 50, 46],
+        "grassHalf": [222, 301, 70, 40],
+        "grassHalfLeft": [292, 301, 70, 40],
+        "grassHalfMid": [0, 329, 70, 40],
+        "keyGreen": [70, 347, 60, 36],
+        "springboardDown": [130, 347, 70, 36],
+        "spikes": [200, 347, 70, 35],
+        "gemYellow": [344, 161, 34, 24]
+    });
 }
 
-function setupAssets() {
-    // C.sprite(66, 92, "p1_spritesheet.png", { player_idle: [0,0]});
-    C.sprite(47, 47, "alienGreen_badge1.png", { player_face: [0,0]});
-    C.sprite("signRight.png", {sign: [0, 0, T, T]});
-    C.sprite("grass.png", {grass: [0, 0, T, T]});
-    C.sprite("grassLeft.png", {grassLeft: [0, 0, T, T]});
-    C.sprite("grassMid.png", {grassMid: [0, 0, T, T]});
-    C.sprite("grassRight.png", {grassRight: [0, 0, T, T]});
-    C.sprite(216, 139, "cloud3.png", {cloudSpace: [0, 0]});
-}
 
 let morse = {
     'a': '.-',    'b': '-...',  'c': '-.-.', 'd': '-..',
@@ -126,21 +133,21 @@ function convertStr(str) {
 function validateStr(str) {
     // return 1: ok, 0: too short, -1: too long, -2: bad chars
     if (str.length == 0) {
-        return 0;
+        return 2;
     }
-    if (str.length > 20) {
-        return -1;
+    if (str.length > 15) {
+        return 3;
     }
     for (i = 0; i < str.length; i++) {
         if (!morse.hasOwnProperty(str[i])) {
-            return -2;
+            return 4;
         }
     }
     return true;
 }
 
 function getUrlHash() {
-    let defaultStr = convertStr("hello");
+    let defaultStr = convertStr(DefStr);
     // let defaultStr = "h!mnwd!xnt";
     let targetStr = decodeURIComponent(window.location.hash.substring(1));
     targetStr = targetStr.toLowerCase();
@@ -152,6 +159,24 @@ function getUrlHash() {
 }
 
 function makeMap() {
+    let player = C.e('Player, 2D, Canvas, Persist, Twoway, GroundAttacher, SpriteAnimation, player_idle')
+        .attr({ x: P.x, y: P.y })
+        .twoway(M.S, M.J)
+        .reel('jump', 500, 5, 0, 1)
+        .reel('idle', 500, 0, 0, 1)
+        .reel('move', 500, 1, 0, 4);
+    P.w = player.w;
+    P.h = player.h;
+    let startFloor = C.e('Floor, 2D, Canvas, Color')
+      .attr({x: -W/2, y: H - 100, w: W, h: 20})
+      .color("#40cf40");
+    // add gravity after setting up a floor
+    player.addComponent('Gravity')
+        .gravityConst(M.G)
+        .gravity('Floor')
+        .preventGroundTunneling();
+    C.e('2D, Canvas, signRight').attr({x: -160, y: startFloor.y-T});
+
     Freeze = false;
     // morseMap: 0: ., 1: -, 2: /, -1: end of a character
     let morseMap = [];
@@ -193,7 +218,7 @@ function makeMap() {
             let name = 'Space';
             let block = C.e('2D, Canvas, Block, Floor, Persist, Morse, ' + name)
                 .attr({...attr});
-            let cloud = C.e("2D, Canvas, Persist, cloudSpace")
+            let cloud = C.e("2D, Canvas, Persist, cloud3")
                 .attr({x:attr.x-64, y:attr.y-40});
             block.attach(cloud);
             cloudPlacedLast = true;
@@ -225,8 +250,9 @@ function makeMap() {
                 block.addComponent('Dash, Morse, grassLeft');
                 let mid = C.e('2D, Canvas, Floor, Persist, Block, grassMid')
                     .attr({...attr});
-                let end = C.e('2D, Canvas, Floor, Persist, Block, grassRight')
-                    .attr({...attr});
+                let end = C.e('2D, Canvas, Floor, Persist, Block, grassLeft')
+                    .attr({...attr})
+                    .flip();
                 mid.x += T*1;
                 end.x += T*2;
                 attr.w = T*3;
@@ -237,7 +263,7 @@ function makeMap() {
     }
 
     // position final area
-    C.e('2D, Canvas, Color, Persist, Final, Floor')
+    let finalFloor = C.e('2D, Canvas, Color, Persist, Final, Floor')
         .color('goldenrod')
         .attr({x: pos.x + 100, y: pos.y, w: W, h: 60});
 
@@ -266,7 +292,7 @@ C.defineScene("start", function () {
         .textColor("white");
     C.load(assets,
         function () {
-            setupAssets();
+            assignSprites();
             C.enterScene('main');
         },
         function (stat) {
@@ -280,28 +306,13 @@ C.defineScene("main", function () {
     // TODO: graphics
     // TODO: mouse control
     // TEST: make map static, move generation into start scene with persistence
-    let player = C.e('Player, 2D, Canvas, Twoway, Gravity, GroundAttacher, SpriteAnimation, player_idle')
-        .attr({ x: P.x, y: P.y })
-        .gravityConst(M.G)
-        .twoway(M.S, M.J)
-        .gravity('Floor')
-        .preventGroundTunneling()
-        .reel('jump', 500, 5, 0, 1)
-        .reel('idle', 500, 0, 0, 1)
-        .reel('move', 500, 1, 0, 4);
-    P.w = player.w;
-    P.h = player.h;
-
-    let startFloor = C.e('Floor, 2D, Canvas, Color')
-      .attr({x: -W/2, y: H - 100, w: W, h: 20})
-      .color("#40cf40");
-    C.e('2D, Canvas, sign').attr({x: -160, y: startFloor.y-T});
     Msg = getUrlHash();
     if (!validateStr(Msg)) {
-        Msg = "hello";
+        Msg = DefStr;
     }
     makeMap();
 
+    player = C('Player');
     player.bind('UpdateFrame', function(ev) {
         let v = player.velocity();
         if (!player.ground) {
@@ -376,6 +387,7 @@ C.defineScene("fadeToEnd", function () {
     // TODO: restart with new msg
     C.viewport.x = V.x;
     C.viewport.y = V.y;
+    let player = C("Player");
     let FinalObjs = C('Final');
     FinalObjs.each(function (e) {
         if (this.has('2D')) { this.addComponent('Tween') };
@@ -430,11 +442,10 @@ C.defineScene("end", function () {
     let zoom_factor = Math.min(C.viewport.width/(zrect.w+60),
                                C.viewport.height/(zrect.h+60));
     zoom_factor = (zoom_factor > 1) ? 1: zoom_factor;
-    let zoom_time = 2000;
-    Osc.start();
-    C.viewport.zoom(zoom_factor, zrect.x+zrect.w/2, zrect.y+zrect.h/2, zoom_time);
-    function postZoom () {
-        C('cloudSpace').each(function (i) {
+    Osc.play(); Osc.stop(); Osc.play();
+    C.viewport.zoom(zoom_factor, zrect.x+zrect.w/2, zrect.y+zrect.h/2, 2000);
+    C.one('CameraAnimationDone', function () {
+        C('cloud3').each(function (i) {
             this.addComponent('Tween');
             this.tween({y: -C.viewport.y-this.h}, 4000, 'easeOutQuad');
         });
@@ -442,20 +453,20 @@ C.defineScene("end", function () {
         let charCounter = 0;
         // zoom in close to marker and follow
         // C.viewport.follow(marker);
-        let inputArea = document.getElementById('inputArea');
-        inputArea.style.display = 'block';
-        inputArea.style.width = C.viewport.width + 'px';
-        inputArea.style.marginTop = 20 + 'px';
+        let msgArea = document.getElementById('msgArea');
+        msgArea.style.display = 'block';
+        msgArea.style.width = C.viewport.width + 'px';
         marker.onHit('Collision', function (hit, first) {
             if (first === true) {
                 let block = hit[0].obj; // there's no overlap so always only one entity hits
                 block.color('red', 1);
                 if (!block.has('SpaceCollider')) {
-                    Osc.start();
+                    Osc.play();
                 }
                 charCounter++;
                 if (typeof MsgTrain[charCounter] === 'string') {
-                    inputArea.textContent += MsgTrain[charCounter];
+                    msgArea.textContent += MsgTrain[charCounter];
+                    fontFit(msgArea);
                     charCounter++;
                 }
             }
@@ -465,9 +476,74 @@ C.defineScene("end", function () {
         if (charCounter >= MsgTrain.length) {
             Osc.stop();
         }
-        marker.tween({x: zrect.x+zrect.w+20}, (zrect.w/T)*100);
+        marker.tween({x: zrect.x+zrect.w+20}, (zrect.w/T)*MarkerDelay);
+        marker.one('TweenEnd', function () {
+            let r = C.viewport.rect();
+            C('*').each(function (i) {
+                this.addComponent('Tween');
+                this.removeComponent('Persist');
+                this.tween({alpha: 0}, 5000, 'easeOutQuad');
+            });
+            C.e('Delay').delay(function () {
+                // badger hints at click/touch
+                let badger = C.e('2D, Canvas, player_badge, Tween');
+                badger.attr({w:r._w/100*15, h:r._w/100*15});
+                badger.attr({x:r._x+r._w/2-badger.w/2, y:r._y+r._h/2-badger.h/2});
+                C('player_badge').bind('UpdateFrame', function () {
+                    this.alpha = Math.min(70, Math.sin((C.frame())*0.05));
+                });
+                C.e('Keyboard, Mouse, 2D, Canvas, Color')
+                    .attr({x:r._x, y:r._y, w:r._w, h:r._h})
+                    .color("red", 0)
+                    .bind("KeyUp", function (k) {Clog('clicked');C.enterScene("share")})
+                    .bind("Click", function (k) {Clog('clicked');C.enterScene("share")});
+            }, 2000);
+        })
+    });
+});
+
+C.defineScene('share', function () {
+    // position: absolute; visibility: visible; width: 760px; height: 360px; z-index: 0; opacity: 1; transform: translate3d(20px, 60px, 0px);
+    let inputContainer = document.getElementById('inputContainer');
+    let inputArea = document.getElementById('inputArea');
+    let credits = document.getElementById('credits');
+    let input = document.getElementById('input');
+    let status = document.getElementById('status');
+    inputContainer.style.display = 'block';
+    inputContainer.style.position = 'absolute';
+    inputContainer.style.left = '0px';
+    inputContainer.style.top = '0px';
+    inputContainer.style.width = W+ 'px';
+    inputContainer.style.height = H + 'px';
+    inputContainer.style.transfrom = "translate3d(20px, 60px, 0px)";
+    inputContainer.style.zIndex = "50";
+    C.stage.elem.appendChild(inputContainer);
+    inputArea.style.display = 'block';
+    credits.style.width = W + 'px';
+    credits.style.display = 'block';
+    // return 1: ok, 2: too short, 3: too long, 4: bad chars
+    let messages = {
+        1: "here's your level!",
+        2: "type a message",
+        3: "whoa too much text!",
+        4: "type something else!"
+    };
+    status.textContent = messages[2];
+    let validator = function () {
+        let msg = input.value;
+        let result = validateStr(msg);
+        result = (result === true) ? 1 : result;
+        status.innerHTML = messages[result];
+        if (result == 1) {
+            let hash = convertStr(msg);
+            let addr = window.location.href.replace(/\#.*$/, '');
+            let url = `${addr}#${hash}`;
+            status.innerHTML = `<a href="${url}">${status.innerHTML}</a>`;
+        }
     }
-    C.e('Delay').delay(postZoom, zoom_time);
+    validator(); // run on browser-prefilled input history
+    input.addEventListener('keyup', validator);
+    // hook input
 });
 
 // kick off

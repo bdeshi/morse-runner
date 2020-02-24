@@ -1,10 +1,51 @@
+ @font-face
+   font-family ___
+   font-style normal
+   src url(OldComputerManualMonospaced-KmlZ.ttf)
+*
+  font-family ___, monospace
 body
   padding 12px
   background #aaa
-
-#inputArea
+#inputArea, #msgArea
   display none
-  width 100%
+  background #DDFF92
+  text-align center
+  transition: display 0.5s
+#msgArea
   height 100px
-  background yellow
-  
+  font-size 80px
+  border-radius 0 0 20px 20px
+  border-top 2px solid rgba(50, 50, 50, 0.5)
+#inputContainer
+  display none
+  position absolute
+  z-index 40
+#inputArea
+  color #7d6d7d
+  font-size 35px
+  padding 20px
+  padding-top 70px
+  height 100%
+  #input
+    width 100%
+    font-size 35px
+    border #defc00 2px dashed
+    border-radius 4px
+    box-sizing border-box
+    background white
+  .status
+    color #FD6060
+    padding 20px
+  #success
+    color #6050FD
+    font-size 35px
+  #more
+    font-size 15px
+
+#credits
+  display none
+  font-style italic
+  font-size 8px
+  text-align right
+  margin 10px 0
