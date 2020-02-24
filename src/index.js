@@ -303,7 +303,14 @@ C.defineScene("main", function () {
     makeMap();
 
     player.bind('UpdateFrame', function(ev) {
-
+        let v = player.velocity();
+        if (!player.ground) {
+            player.animate('jump', -1);
+        } else if (v.x==0 && v.y==0) {
+            player.animate('idle', -1);
+        } else if (!player.isPlaying('move')) {
+            player.animate('move', -1);
+        }
         if (this.x < -50) { this.x += 10; }  // don't go off map
         if (this.y > H + 500) { C.enterScene("redo"); }  // reset scene on fall
     });
