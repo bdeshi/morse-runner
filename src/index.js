@@ -35,6 +35,7 @@ function fontFit(el) {
     }
 }
 
+let Scene = "";
 // viewport size
 let W = 800, H = 480;
 // sprite tile default ht
@@ -92,7 +93,7 @@ function assignSprites() {
         "grassCliffLeft": [204, 161, 70, 70],
         "grassLeft": [274, 161, 70, 70],
         "grassMid": [0, 209, 70, 70],
-        "ladderMid": [70, 209, 70, 70],
+        "ladder": [70, 209, 70, 70],
         "ladderTop": [140, 231, 70, 70],
         "lockYellow": [210, 231, 70, 70],
         "signRight": [320, 84, 64, 70],
@@ -163,10 +164,10 @@ function getUrlHash() {
 }
 
 function makeMap() {
-    let bg = C.e('2D, Canvas, bg, back')
+    let bg = C.e('2D, Canvas, bg, back, Persist')
         .attr({alpha: 0.5, x: -20, y: -20, w: H+140, h: H+140});
     for (var i = 0; i < Math.ceil(W/bg.w)-1; i++) {
-        bg.attach(C.e('2D, Canvas, bg')
+        bg.attach(C.e('2D, Canvas, bg, Persist')
             .attr({alpha: 0.5, x: bg.x+bg.w*(i+1), y: bg.y, w: bg.w, h: bg.h}));
     }
     bg.bind('UpdateFrame', function () {
@@ -191,12 +192,13 @@ function makeMap() {
         C.e('2D, Canvas, grassHalfMid, Floor')
       .attr({x: startFloor.x - T*(i+1), y: startFloor.y});
     }
+    C.e('2D, Canvas, signRight').attr({x: -160, y: startFloor.y-T});
+
     // add gravity after setting up a floor
     player.addComponent('Gravity')
         .gravityConst(M.G)
         .gravity('Floor')
         .preventGroundTunneling();
-    C.e('2D, Canvas, signRight').attr({x: -160, y: startFloor.y-T});
 
     Freeze = false;
     // morseMap: 0: ., 1: -, 2: /, -1: end of a character
@@ -286,7 +288,17 @@ function makeMap() {
     // position final area
     let finalFloor = C.e('2D, Canvas, Color, Persist, Final, Floor')
         .color('goldenrod')
-        .attr({x: pos.x + 100, y: pos.y, w: W, h: 60});
+        .attr({x: pos.x + 200, y: pos.y, w: W, h: 60});
+    let ladder = C.e('2D, Canvas, ladder, ladderBtm, Floor, Final, Persist')
+        .attr({x: finalFloor.x + 250, y: finalFloor.y - T});
+    for (var i = 0; i < 3; i++) {
+        C.e('2D, Canvas, ladder, Final, Persist')
+            .attr({x: ladder.x, y: ladder.y - T*(i+1)});
+    }
+    let ladderTop = C.e('2D, Canvas, ladderTop, Final, Floor, Persist')
+        .attr({x: ladder.x, y: ladder.y - T*4});
+    let moon = C.e('2D, Canvas, moonFull, Moon, Final, Persist')
+        .attr({x: ladderTop.x, y: ladderTop.y - 250});
 
     // make markers
     // encompass location of all dots and dashes
@@ -304,6 +316,7 @@ function makeMap() {
 }
 
 C.defineScene("start", function () {
+    Scene = "start";
     // TODO: show splash screen
     // Crafty.background("#555");
     C.e("2D, Canvas, Text, LoadingText")
@@ -326,7 +339,7 @@ C.defineScene("main", function () {
     // TODO: obstacles
     // TODO: graphics
     // TODO: mouse control
-
+    Scene = "main";
     Msg = getUrlHash();
     if (!validateStr(Msg)) {
         Msg = DefStr;
@@ -335,16 +348,18 @@ C.defineScene("main", function () {
 
     player = C('Player');
     player.bind('UpdateFrame', function(ev) {
-        let v = player.velocity();
-        if (!player.ground) {
-            player.animate('jump', -1);
-        } else if (v.x==0 && v.y==0) {
-            player.animate('idle', -1);
-        } else if (!player.isPlaying('move')) {
-            player.animate('move', -1);
+        if (Scene != "outro") {
+            let v = player.velocity();
+            if (!player.ground) {
+                player.animate('jump', -1);
+            } else if (v.x==0 && v.y==0) {
+                player.animate('idle', -1);
+            } else if (!player.isPlaying('move')) {
+                player.animate('move', -1);
+            }
+            if (this.x < -50) { this.x += 10; }  // don't go off map
+            if (this.y > H + 500) { C.enterScene("redo"); }  // reset scene on fall
         }
-        if (this.x < -50) { this.x += 10; }  // don't go off map
-        if (this.y > H + 500) { C.enterScene("redo"); }  // reset scene on fall
     });
     player.trigger('NewDirection', {x: 1, y: 1});
     player.bind('NewDirection', function (dir) {
@@ -357,17 +372,10 @@ C.defineScene("main", function () {
         if (this.dir_x == -1) { this.flip() }
         else if (this.dir_x == 1) { this.unflip() }
     });
-    player.bind('CheckJumping', function (ground) {
-        if (!ground) {
-            //player.animate('jump', -1);
-        }
-    })
-    player.bind('LandedOnGround', function (ground) {
-        //player.animate('idle', -1);
-    })
+
     // simplified smooth camera follow
     C.viewport.clampToEntities = false;
-    let cam = C.e('2D, Persist, camera')
+    let cam = C.e('2D, Canvas, Persist, camera')
         .attr({x: player.x, y: H - 150, w: 350, h: 100});
     cam.bind('UpdateFrame', function () {
         C.viewport.centerOn(this, 250);
@@ -380,13 +388,12 @@ C.defineScene("main", function () {
     })
 
     player.bind('LandedOnGround', function(ground) {
-        if (!ground.has('Space')) {
-            this.rotation = 0;
-        }
-        if (ground.has('Final')) {
-            V = { x: C.viewport.x, y: C.viewport.y };
-            // C.enterScene('endScene');
-            C.enterScene('outro');
+        if (Scene != "outro") {
+            if (ground.has('Final')) {
+                V = { x: C.viewport.x, y: C.viewport.y };
+                // C.enterScene('endScene');
+                C.enterScene('outro');
+            }
         }
     })
 });
@@ -397,42 +404,132 @@ C.defineScene("redo", function () {
     C('Persist').each(function (i) {
         this.destroy();
     })
+    Scene = "redo";
     C.enterScene("main");
 });
 
 C.defineScene("outro", function () {
-    Clog('finishing');
+    C.viewport.x = V.x;
+    C.viewport.y = V.y;
+    Scene = "outro";
+    Clog('outro');
     // TODO: make msg
     // TODO: restart with new msg
     let zoomPos = {x: V.y+C.viewport.width/2, y: V.y+C.viewport.height/2};
 
     let player = C("Player");
-    player.removeComponent('Gravity', false);
-    player.removeComponent('Twoway', false);
-    player.removeComponent('Jumper', false);
-    player.removeComponent('Multiway', false);
-    player.addComponent('Tween');
-    player.tween({x: player.x + 200}, 500);
-    let FinalObjs = C('Final');
-    FinalObjs.each(function (e) {
-        if (this.has('2D')) { this.addComponent('Tween') };
-    this.tween({alpha: 0}, 500);
-    });
-    C('camera').destroy();
-    C.viewport.x = V.x;
-    C.viewport.y = V.y;
-    // make event based
-    C.e('Delay').delay(function () {
-        C('Final').each(function (i) {
-            this.destroy();
+    let ladder = C("ladderBtm");
+    let ladderTop = C("ladderTop");
+    let moon = C("Moon");
+
+    // go to ladder
+    C.one('AnimStep1', function () {
+        player.removeComponent('Twoway');
+        player.removeComponent('Multiway');
+        player.removeComponent('Jumper');
+        Clog('AnimStep1');
+        player.addComponent('Tween');
+        player.unflip();
+        player.animate('move', -1);
+        player.tween({x: ladder.x + 1}, 1500);
+        player.one('TweenEnd', function () {
+            Clog('bind1');
+            player.animate('idle', -1);
+            C.trigger('AnimStep2');
         });
-        C.enterScene('end');
-    }, 15000);
+    });
+    // climb ladder
+    C.one('AnimStep2', function () {
+        Clog('AnimStep2');
+        player.removeComponent('Gravity');
+        player.animate('climb', -1);
+        player.tween({y: ladderTop.y - player.h - 2}, 1500);
+        player.one('TweenEnd', function () {
+            if (this.y <= ladderTop.y - player.h) {
+                player.animate('idle', -1);
+                C.trigger('AnimStep3');
+            }
+        });
+    });
+
+    // see the moon
+    C.one('AnimStep3', function () {
+        Clog('AnimStep3');
+        player.animate('idle', -1);
+        C.e('Delay').delay(function () {
+            player.addComponent('Twoway, Jumper, Gravity')
+                .twoway(M.S, M.J/3)
+                .gravityConst(M.G)
+                .gravity('Floor');
+            // give time for components to stick
+            C.e('Delay').delay(function () {
+               C.trigger('AnimStep4');
+            }, 500);
+        }, 500);
+    });
+    // get to the moon
+    C.one('AnimStep4', function () {
+        Clog('AnimStep4');
+        player.animate('jump', -1);
+        C.e('Delay').delay(function () {
+            player.one('LandedOnGround', function () {
+                player._jumpSpeed += 100;
+                C.e('Delay').delay(function () {
+                    player.one('LandedOnGround', function () {
+                        player._jumpSpeed += 100;
+                        C.e('Delay').delay(function () {
+                            player.one('LandedOnGround', function () {
+                                player._jumpSpeed += 100;
+                                C.e('Delay').delay(function () {
+                                    player.jump();
+                                }, 500);
+                            });
+                            player.jump();
+                        }, 500);
+                    });
+                    player.jump();
+                }, 500);
+            });
+            player.jump();
+        }, 550);
+        player.bind('UpdateFrame', function () {
+            if (this.y < moon.y+moon.h) {
+                player.attr({alpha: 0});
+                let badge = C.e("2D, Canvas, Final, player_badge").attr({x:-100, y: -100});
+                badge.x = moon.x + moon.w/2 - badge.w/2;
+                badge.y = moon.y + moon.h/2 - badge.h/2;
+                C.trigger('AnimStep5');
+            }
+        });
+    });
+
+    C.one('AnimStep5', function () {
+        Clog('AnimStep5');
+        function NextScene(e) {
+            C.viewport.zoom(1, zoomPos.x, zoomPos.y, 500);
+            C.bind('CameraAnimationDone', function () {
+                if (Scene == "outro") {
+                    C('Final').each(function (i) {
+                        this.destroy();
+                    });
+                    C.enterScene('end');
+                }
+            });
+        };
+        C('Final').each(function (i) {
+            this.addComponent('Tween');
+            this.tween({alpha: 0}, 500);
+            if (i === 1) {
+                this.bind('TweenEnd', NextScene);
+            }
+        });
+    });
+    C.trigger('AnimStep1');
 });
 
 C.defineScene("end", function () {
+    Scene = "end";
     Clog('ending');
-    Freeze = true;
     C.viewport.x = V.x;
     C.viewport.y = V.y;
     let bottom = C.e('2D, Canvas, Bottom')
@@ -533,6 +630,7 @@ C.defineScene("end", function () {
 });
 
 C.defineScene('share', function () {
+    Scene = "share";
     // position: absolute; visibility: visible; width: 760px; height: 360px; z-index: 0; opacity: 1; transform: translate3d(20px, 60px, 0px);
     let inputContainer = document.getElementById('inputContainer');
     let inputArea = document.getElementById('inputArea');
