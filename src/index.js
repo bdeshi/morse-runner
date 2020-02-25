@@ -40,8 +40,8 @@ let Scene = "";
 let W = 800, H = 480;
 // sprite tile default ht
 let T = 70;
-// controls speed of marker/wiper to display morse msg
-let MarkerDelay = 70;
+// controls speed of marker/wiper to reveal msg
+let MarkerDelay = 80;
 // player sprite w/h, will take on sprite asset dimensions
 let P = { x: 100, y: 360, w: 0, h: 0 };
 // player gravity speed jump strength, jump width, jump height
@@ -64,10 +64,9 @@ let DefStr = "hi";
 let assets = {
     "audio": {
         "bg": ["bg.wav", "bg.mp3", "bg.ogg"],
-        "outro": [],
-        "footstep": ["footstep.wav", "footstep.mp3", "footstep.ogg"],
-        "jump1": ['pepSound4.wav', 'pepSound4.mp3','pepSound4.ogg'],
-        "jump2": ['pepSound5.wav', 'pepSound5.mp3','pepSound5.ogg']
+        "sparkle": ["sparkle.ogg", "sparkle.mp3", "sparkle.wav"],
+        "redo": ["redo.wav", "redo.mp3", "redo.ogg"],
+        "jump1": ['jump1.wav', 'jump1.mp3','jump1.ogg']
     },
     "images": [
         "backgroundColorGrass.png",
@@ -84,7 +83,7 @@ function assignSprites() {
         "bg": [0, 0]
     });
     C.sprite("platform_spritesheet.png", {
-        "cloud3": [0, 0, 216, 139],
+        "cloud": [0, 0, 216, 139],
         "moonFull": [216, 0, 84, 84],
         "sun": [300, 0, 84, 84],
         "fence": [216, 84, 104, 77],
@@ -149,7 +148,7 @@ function validateStr(str) {
             return 4;
         }
     }
-    return true;
+    return 1;
 }
 
 function getUrlHash() {
@@ -193,7 +192,7 @@ function makeMap() {
         C.e('2D, Canvas, grassHalfMid, Floor')
       .attr({x: startFloor.x - T*(i+1), y: startFloor.y});
     }
-    C.e('2D, Canvas, signRight').attr({x: -160, y: startFloor.y-T});
+    C.e('2D, Canvas, signRight').attr({x: -190, y: startFloor.y-T});
 
     // add gravity after setting up a floor
     player.addComponent('Gravity')
@@ -242,7 +241,7 @@ function makeMap() {
             let name = 'Space';
             let block = C.e('2D, Canvas, Block, Floor, Persist, Morse, ' + name)
                 .attr({...attr});
-            let cloud = C.e("2D, Canvas, Persist, cloud3")
+            let cloud = C.e("2D, Canvas, Persist, cloud")
                 .attr({x:attr.x-64, y:attr.y-40});
             block.attach(cloud);
             cloudPlacedLast = true;
@@ -293,13 +292,20 @@ function makeMap() {
     let ladder = C.e('2D, Canvas, ladder, ladderBtm, Floor, Final, Persist')
         .attr({x: finalFloor.x + 250, y: finalFloor.y - T});
     for (var i = 0; i < 3; i++) {
-        C.e('2D, Canvas, ladder, Final, Persist')
+        let ladderSegment = C.e('2D, Canvas, ladder, Final, Persist')
             .attr({x: ladder.x, y: ladder.y - T*(i+1)});
     }
     let ladderTop = C.e('2D, Canvas, ladderTop, Final, Floor, Persist')
         .attr({x: ladder.x, y: ladder.y - T*4});
     let moon = C.e('2D, Canvas, moonFull, Moon, Persist')
         .attr({x: ladderTop.x, y: ladderTop.y - 250});
+    // fix z-order
+    C("ladder, ladderTop").each(function (i) {
+        player.z = this.z+1;
+    });
+    C("cloud").each(function (i) {
+        this.z = player.z+1;
+    });
 
     // make markers
     // encompass location of all dots and dashes
@@ -343,7 +349,7 @@ C.defineScene("main", function () {
     // TODO: mouse control
     Scene = "main";
     Msg = getUrlHash();
-    if (!validateStr(Msg)) {
+    if (validateStr(Msg) != 1) {
         Msg = DefStr;
     }
     makeMap();
@@ -351,7 +357,7 @@ C.defineScene("main", function () {
     player = C('Player');
     player.bind('CheckJumping', function (ground) {
         if (ground) {
-            C.audio.play("jump1", 1);
+            C.audio.play("jump1", 1, 0.3);
         }
     });
     player.bind('UpdateFrame', function() {
@@ -406,8 +412,9 @@ C.defineScene("main", function () {
 });
 
 // called from main and just goes back to main
-// ensures no entities from main survives
+// clears persisting regenerated entities
 C.defineScene("redo", function () {
+    C.audio.play("redo", 1);
     C('Persist').each(function (i) {
         this.destroy();
     })
@@ -458,6 +465,7 @@ C.defineScene("outro", function () {
             if (this.y <= ladderTop.y - player.h) {
                 player.animate('idle', -1);
                 C.trigger('AnimStep3');
+                C.audio.play("sparkle", 1);
             }
         });
     });
@@ -577,13 +585,16 @@ C.defineScene("end", function () {
         this.gravityConst(M.G/2).gravity('Bottom');
     });
     zrect.y = Bottom.y - ZRect.h;
+    if (zrect.h > T*2) {
+        zrect.y += zrect.h / 2;
+    }
     let zoom_factor = Math.min(C.viewport.width/(zrect.w+60),
                                C.viewport.height/(zrect.h+60));
     zoom_factor = (zoom_factor > 1) ? 1: zoom_factor;
     Osc.play(); Osc.stop(); Osc.play();
-    C.viewport.zoom(zoom_factor, zrect.x+zrect.w/2, zrect.y+zrect.h/2, 2000);
+    C.viewport.zoom(zoom_factor, zrect.x+zrect.w/2, zrect.y+zrect.h/2, 1500, 'easeOutQuad');
     C.one('CameraAnimationDone', function () {
-        C('cloud3').each(function (i) {
+        C('cloud').each(function (i) {
             this.addComponent('Tween');
             this.tween({y: -C.viewport.y-this.h}, 4000, 'easeOutQuad');
         });
@@ -648,15 +659,17 @@ C.defineScene('share', function () {
     let credits = document.getElementById('credits');
     let input = document.getElementById('input');
     let status = document.getElementById('status');
+    let msgArea = document.getElementById('msgArea');
     inputContainer.style.display = 'block';
     inputContainer.style.position = 'absolute';
-    inputContainer.style.left = '0px';
-    inputContainer.style.top = '0px';
+    // inputContainer.style.left = '0px';
+    // inputContainer.style.top = '0px';
     inputContainer.style.width = W+ 'px';
     inputContainer.style.height = H + 'px';
     inputContainer.style.transfrom = "translate3d(20px, 60px, 0px)";
     inputContainer.style.zIndex = "50";
-    C.stage.elem.appendChild(inputContainer);
+    //C.stage.elem.appendChild(inputContainer);
+    document.body.insertBefore(inputContainer, msgArea);
     inputArea.style.display = 'block';
     credits.style.width = W + 'px';
     credits.style.display = 'block';
@@ -671,13 +684,13 @@ C.defineScene('share', function () {
     let validator = function () {
         let msg = input.value.toLowerCase();
         let result = validateStr(msg);
-        result = (result === true) ? 1 : result;
         status.innerHTML = messages[result];
         if (result == 1) {
             let hash = convertStr(msg);
             let addr = window.location.href.replace(/\#.*$/, '');
             let url = `${addr}#${hash}`;
-            status.innerHTML = `<a href="${url}">${status.innerHTML}</a>`;
+            window.location.replace(url);
+            status.innerHTML = `<a href="${url}" onclick="window.location.reload(false);">${status.innerHTML}</a>`;
             status.classList.add('success');
         } else {
             status.classList.remove('success');
