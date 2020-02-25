@@ -63,14 +63,13 @@ let DefStr = "hi";
 
 let assets = {
     "audio": {
-        "footstep": [],
-        "bg": ["bg.wav"],
+        "bg": ["bg.wav", "bg.mp3", "bg.ogg"],
         "outro": [],
-        "jump1": ['pepSound4.ogg'],
-        "jump2": ['pepSound5.ogg']
+        "footstep": ["footstep.wav", "footstep.mp3", "footstep.ogg"],
+        "jump1": ['pepSound4.wav', 'pepSound4.mp3','pepSound4.ogg'],
+        "jump2": ['pepSound5.wav', 'pepSound5.mp3','pepSound5.ogg']
     },
     "images": [
-        "backgroundColorForest.png",
         "backgroundColorGrass.png",
         "platform_spritesheet.png",
         "player_spritesheet.png"
@@ -322,14 +321,14 @@ C.defineScene("start", function () {
     // TODO: show splash screen
     // Crafty.background("#555");
     C.e("2D, Canvas, Text, LoadingText")
-        .attr({x: C.viewport.width / 2, y: C.viewport.height / 2})
+        .attr({x: 0, y: 0})
         .text("loading")
         .textAlign("center")
         .textColor("white");
     C.load(assets,
         function () {
             assignSprites();
-            // C.audio.play("bg", -1);
+            C.audio.play("bg", -1);
             C.enterScene('main');
         },
         function (stat) {
@@ -670,12 +669,12 @@ C.defineScene('share', function () {
     };
     status.textContent = messages[2];
     let validator = function () {
-        let msg = input.value;
+        let msg = input.value.toLowerCase();
         let result = validateStr(msg);
         result = (result === true) ? 1 : result;
         status.innerHTML = messages[result];
         if (result == 1) {
-            let hash = convertStr(msg.toLowerCase());
+            let hash = convertStr(msg);
             let addr = window.location.href.replace(/\#.*$/, '');
             let url = `${addr}#${hash}`;
             status.innerHTML = `<a href="${url}">${status.innerHTML}</a>`;

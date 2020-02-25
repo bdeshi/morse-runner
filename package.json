@@ -1,7 +1,7 @@
 {
-  "name": "morse-runner",
+  "name": "littleditty",
   "version": "0.0.1",
-  "description": "morse-code based running platformer game",
+  "description": "morse-code based platformer microgame",
   "repository": "github.com/bdeshi/morse-runner",
   "author": "bdeshi",
   "license": "MIT",
