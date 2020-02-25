@@ -64,8 +64,10 @@ let DefStr = "hi";
 let assets = {
     "audio": {
         "footstep": [],
-        "bg": [],
-        "outro": []
+        "bg": ["bg.wav"],
+        "outro": [],
+        "jump1": ['pepSound4.ogg'],
+        "jump2": ['pepSound5.ogg']
     },
     "images": [
         "backgroundColorForest.png",
@@ -164,10 +166,10 @@ function getUrlHash() {
 }
 
 function makeMap() {
-    let bg = C.e('2D, Canvas, bg, back, Persist')
+    let bg = C.e('2D, Canvas, bg, Final, Persist')
         .attr({alpha: 0.5, x: -20, y: -20, w: H+140, h: H+140});
     for (var i = 0; i < Math.ceil(W/bg.w)-1; i++) {
-        bg.attach(C.e('2D, Canvas, bg, Persist')
+        bg.attach(C.e('2D, Canvas, bg, Final, Persist')
             .attr({alpha: 0.5, x: bg.x+bg.w*(i+1), y: bg.y, w: bg.w, h: bg.h}));
     }
     bg.bind('UpdateFrame', function () {
@@ -297,7 +299,7 @@ function makeMap() {
     }
     let ladderTop = C.e('2D, Canvas, ladderTop, Final, Floor, Persist')
         .attr({x: ladder.x, y: ladder.y - T*4});
-    let moon = C.e('2D, Canvas, moonFull, Moon, Final, Persist')
+    let moon = C.e('2D, Canvas, moonFull, Moon, Persist')
         .attr({x: ladderTop.x, y: ladderTop.y - 250});
 
     // make markers
@@ -327,6 +329,7 @@ C.defineScene("start", function () {
     C.load(assets,
         function () {
             assignSprites();
+            // C.audio.play("bg", -1);
             C.enterScene('main');
         },
         function (stat) {
@@ -347,9 +350,14 @@ C.defineScene("main", function () {
     makeMap();
 
     player = C('Player');
-    player.bind('UpdateFrame', function(ev) {
+    player.bind('CheckJumping', function (ground) {
+        if (ground) {
+            C.audio.play("jump1", 1);
+        }
+    });
+    player.bind('UpdateFrame', function() {
+        let v = player.velocity();
         if (Scene != "outro") {
-            let v = player.velocity();
             if (!player.ground) {
                 player.animate('jump', -1);
             } else if (v.x==0 && v.y==0) {
@@ -375,7 +383,7 @@ C.defineScene("main", function () {
 
     // simplified smooth camera follow
     C.viewport.clampToEntities = false;
-    let cam = C.e('2D, Canvas, Persist, camera')
+    let cam = C.e('2D, Canvas, Persist, Camera')
         .attr({x: player.x, y: H - 150, w: 350, h: 100});
     cam.bind('UpdateFrame', function () {
         C.viewport.centerOn(this, 250);
@@ -409,6 +417,7 @@ C.defineScene("redo", function () {
 });
 
 C.defineScene("outro", function () {
+    Freeze = true;
     C.viewport.x = V.x;
     C.viewport.y = V.y;
     Scene = "outro";
@@ -418,9 +427,11 @@ C.defineScene("outro", function () {
     let zoomPos = {x: V.y+C.viewport.width/2, y: V.y+C.viewport.height/2};
 
     let player = C("Player");
+    let cam = C("Camera");
     let ladder = C("ladderBtm");
     let ladderTop = C("ladderTop");
     let moon = C("Moon");
+    let badge = C.e("2D, Canvas, Final, player_badge");
 
     // go to ladder
     C.one('AnimStep1', function () {
@@ -495,7 +506,7 @@ C.defineScene("outro", function () {
         player.bind('UpdateFrame', function () {
             if (this.y < moon.y+moon.h) {
                 player.attr({alpha: 0});
-                let badge = C.e("2D, Canvas, Final, player_badge").attr({x:-100, y: -100});
+                badge.attr({x:-100, y: -100});
                 badge.x = moon.x + moon.w/2 - badge.w/2;
                 badge.y = moon.y + moon.h/2 - badge.h/2;
                 C.trigger('AnimStep5');
@@ -506,21 +517,19 @@ C.defineScene("outro", function () {
     C.one('AnimStep5', function () {
         Clog('AnimStep5');
         function NextScene(e) {
-            C.viewport.zoom(1, zoomPos.x, zoomPos.y, 500);
-            C.bind('CameraAnimationDone', function () {
-                if (Scene == "outro") {
-                    C('Final').each(function (i) {
-                        this.destroy();
-                    });
-                    C.enterScene('end');
-                }
-            });
+            C.e('Delay').delay(function () {
+                C('Final, Camera, Player').each(function (i) {
+                    this.removeComponent('Persist');
+                });
+                C.enterScene('end');
+                // C.viewport.zoom(1, zoomPos.x, zoomPos.y, 500);
+            }, 500);
         };
         C('Final').each(function (i) {
             this.addComponent('Tween');
-            this.tween({alpha: 0}, 500);
+            this.tween({alpha: 0}, 1500);
             if (i === 1) {
-                this.bind('TweenEnd', NextScene);
+                this.one('TweenEnd', NextScene);
             }
         });
     });
@@ -532,15 +541,18 @@ C.defineScene("end", function () {
     Clog('ending');
     C.viewport.x = V.x;
     C.viewport.y = V.y;
-    let bottom = C.e('2D, Canvas, Bottom')
+    let bottom = C.e('2D, Canvas, Bottom, Color')
         .attr({...Bottom});
-    let marker = C.e('2D, Canvas, Collision, Tween')
+    let marker = C.e('2D, Canvas, Collision, Color, Tween')
         .attr({x: -50 /*Bottom.x*/, y: Bottom.y-T, w: 1, h: T*2})
     let zrect = C.e('2D, Canvas, ZRect')
         .attr({...ZRect});
 
     // create colliders
     C('Morse').each(function (i) {
+        if (this.y < Bottom.y - this.h) {
+            this.y = Bottom.y - this.h - 4;
+        }
         let collider = C.e('2D, Canvas, Collision, Color')
             .attr({y: Bottom.y + 4, h: 20})
             .color("red", 0);
@@ -624,7 +636,7 @@ C.defineScene("end", function () {
                     .color("red", 0)
                     .bind("KeyUp", function (k) {Clog('clicked');C.enterScene("share")})
                     .bind("Click", function (k) {Clog('clicked');C.enterScene("share")});
-            }, 2000);
+            }, 5000);
         })
     });
 });
