@@ -48,6 +48,7 @@ let P = { x: 100, y: 360, w: 0, h: 0 };
 let M = { G: 1 * 2500, S: 6 * 50, J: 17 * 50, J_W: 234, J_H: 170 };
 // area to zoom to at the end containg all blocks
 let ZRect = {}, Bottom = {}, Marker = {};
+let V = {};
 // contains morse message and display helper
 let Msg = '';
 let MsgTrain = [];
@@ -77,6 +78,9 @@ function assignSprites() {
     C.sprite(66, 92, "player_spritesheet.png", {
         "player_idle": [0, 0]
     });
+    C.sprite(1024, 1024, "backgroundColorGrass.png", {
+        "bg": [0, 0]
+    });
     C.sprite("platform_spritesheet.png", {
         "cloud3": [0, 0, 216, 139],
         "moonFull": [216, 0, 84, 84],
@@ -88,9 +92,9 @@ function assignSprites() {
         "grassCliffLeft": [204, 161, 70, 70],
         "grassLeft": [274, 161, 70, 70],
         "grassMid": [0, 209, 70, 70],
-        "ladder_mid": [70, 209, 70, 70],
-        "ladder_top": [140, 231, 70, 70],
-        "lock_yellow": [210, 231, 70, 70],
+        "ladderMid": [70, 209, 70, 70],
+        "ladderTop": [140, 231, 70, 70],
+        "lockYellow": [210, 231, 70, 70],
         "signRight": [320, 84, 64, 70],
         "bush3": [280, 231, 59, 52],
         "springboardUp": [0, 279, 70, 50],
@@ -124,7 +128,7 @@ let morse = {
 
 function convertStr(str) {
     let out = "";
-    for (n in str) {
+    for (var n in str) {
         out += String.fromCharCode(str.charCodeAt(n)^1);
     }
     return out;
@@ -138,7 +142,7 @@ function validateStr(str) {
     if (str.length > 15) {
         return 3;
     }
-    for (i = 0; i < str.length; i++) {
+    for (var i = 0; i < str.length; i++) {
         if (!morse.hasOwnProperty(str[i])) {
             return 4;
         }
@@ -159,17 +163,34 @@ function getUrlHash() {
 }
 
 function makeMap() {
+    let bg = C.e('2D, Canvas, bg, back')
+        .attr({alpha: 0.5, x: -20, y: -20, w: H+140, h: H+140});
+    for (var i = 0; i < Math.ceil(W/bg.w)-1; i++) {
+        bg.attach(C.e('2D, Canvas, bg')
+            .attr({alpha: 0.5, x: bg.x+bg.w*(i+1), y: bg.y, w: bg.w, h: bg.h}));
+    }
+    bg.bind('UpdateFrame', function () {
+        bg.x = -C.viewport.x-20;
+        bg.y = -C.viewport.y-20;
+    });
+
     let player = C.e('Player, 2D, Canvas, Persist, Twoway, GroundAttacher, SpriteAnimation, player_idle')
         .attr({ x: P.x, y: P.y })
         .twoway(M.S, M.J)
         .reel('jump', 500, 5, 0, 1)
         .reel('idle', 500, 0, 0, 1)
-        .reel('move', 500, 1, 0, 4);
+        .reel('move', 500, 1, 0, 4)
+        .reel('climb', 500, 6, 0, 2);
     P.w = player.w;
     P.h = player.h;
-    let startFloor = C.e('Floor, 2D, Canvas, Color')
-      .attr({x: -W/2, y: H - 100, w: W, h: 20})
-      .color("#40cf40");
+    let startFloor = C.e('2D, Canvas, grassHalfLeft, Floor')
+        .flip();
+    startFloor.x = W/2 - startFloor.w;
+    startFloor.y = P.y+P.h;
+    for (var i = 0; i <= 20; i++) {
+        C.e('2D, Canvas, grassHalfMid, Floor')
+      .attr({x: startFloor.x - T*(i+1), y: startFloor.y});
+    }
     // add gravity after setting up a floor
     player.addComponent('Gravity')
         .gravityConst(M.G)
@@ -196,8 +217,8 @@ function makeMap() {
     // withing a limited distance
     let cloudPlacedLast = false;
     let h = T, w = T;
-    let pos = { x: W/2, y: P.y };
-    for (i=0; i < morseMap.length; i++) {
+    let pos = { x: startFloor.x+startFloor.w, y: startFloor.y };
+    for (var i=0; i < morseMap.length; i++) {
         let attr = {x: 0, y: 0, w: 0, h: 0};
         let m = morseMap[i];
         let next_x, next_y;
@@ -305,7 +326,7 @@ C.defineScene("main", function () {
     // TODO: obstacles
     // TODO: graphics
     // TODO: mouse control
-    // TEST: make map static, move generation into start scene with persistence
+
     Msg = getUrlHash();
     if (!validateStr(Msg)) {
         Msg = DefStr;
@@ -345,30 +366,27 @@ C.defineScene("main", function () {
         //player.animate('idle', -1);
     })
     // simplified smooth camera follow
-    let cam = C.e('2D')
-        .attr({x: player.x, y: H - 150, w: 350, h: 100});
     C.viewport.clampToEntities = false;
+    let cam = C.e('2D, Persist, camera')
+        .attr({x: player.x, y: H - 150, w: 350, h: 100});
     cam.bind('UpdateFrame', function () {
         C.viewport.centerOn(this, 250);
-    })
-    player.bind('UpdateFrame', function (ev) {
-        let x = cam.x, y = cam.y;
+        let x = this.x, y = this.y;
         // if (player.dir_y == 1) { y = this.y }
-        y = this.y + this.h - cam.h/2;
-        if (player.dir_x == 1) { x = this.x }
-        else if (player.dir_x == -1) { x = this.x + this.w - cam.w }
-        cam.attr({x: x, y: y});
-    });
+        y = player.y + player.h - this.h/2;
+        if (player.dir_x == 1) { x = player.x }
+        else if (player.dir_x == -1) { x = player.x + player.w - this.w }
+        this.attr({x: x, y: y});
+    })
 
     player.bind('LandedOnGround', function(ground) {
         if (!ground.has('Space')) {
             this.rotation = 0;
         }
         if (ground.has('Final')) {
-            Clog('finished!');
             V = { x: C.viewport.x, y: C.viewport.y };
             // C.enterScene('endScene');
-            C.enterScene('fadeToEnd');
+            C.enterScene('outro');
         }
     })
 });
@@ -382,26 +400,38 @@ C.defineScene("redo", function () {
     C.enterScene("main");
 });
 
-C.defineScene("fadeToEnd", function () {
+C.defineScene("outro", function () {
+    Clog('finishing');
     // TODO: make msg
     // TODO: restart with new msg
-    C.viewport.x = V.x;
-    C.viewport.y = V.y;
+    let zoomPos = {x: V.y+C.viewport.width/2, y: V.y+C.viewport.height/2};
+
     let player = C("Player");
+    player.removeComponent('Gravity', false);
+    player.removeComponent('Twoway', false);
+    player.removeComponent('Jumper', false);
+    player.removeComponent('Multiway', false);
+    player.addComponent('Tween');
+    player.tween({x: player.x + 200}, 500);
     let FinalObjs = C('Final');
     FinalObjs.each(function (e) {
         if (this.has('2D')) { this.addComponent('Tween') };
     this.tween({alpha: 0}, 500);
     });
+    C('camera').destroy();
+    C.viewport.x = V.x;
+    C.viewport.y = V.y;
+    // make event based
     C.e('Delay').delay(function () {
         C('Final').each(function (i) {
             this.destroy();
         });
         C.enterScene('end');
-    }, 500);
+    }, 15000);
 });
 
 C.defineScene("end", function () {
+    Clog('ending');
     Freeze = true;
     C.viewport.x = V.x;
     C.viewport.y = V.y;
@@ -487,7 +517,7 @@ C.defineScene("end", function () {
             C.e('Delay').delay(function () {
                 // badger hints at click/touch
                 let badger = C.e('2D, Canvas, player_badge, Tween');
-                badger.attr({w:r._w/100*15, h:r._w/100*15});
+                badger.attr({w:r._w/100*10, h:r._w/100*10});
                 badger.attr({x:r._x+r._w/2-badger.w/2, y:r._y+r._h/2-badger.h/2});
                 C('player_badge').bind('UpdateFrame', function () {
                     this.alpha = Math.min(70, Math.sin((C.frame())*0.05));
@@ -535,10 +565,13 @@ C.defineScene('share', function () {
         result = (result === true) ? 1 : result;
         status.innerHTML = messages[result];
         if (result == 1) {
-            let hash = convertStr(msg);
+            let hash = convertStr(msg.toLowerCase());
             let addr = window.location.href.replace(/\#.*$/, '');
             let url = `${addr}#${hash}`;
             status.innerHTML = `<a href="${url}">${status.innerHTML}</a>`;
+            status.classList.add('success');
+        } else {
+            status.classList.remove('success');
         }
     }
     validator(); // run on browser-prefilled input history
